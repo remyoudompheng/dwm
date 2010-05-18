@@ -289,13 +289,17 @@ applyrules(Client *c) {
 	unsigned int i;
 	const Rule *r;
 	Monitor *m;
-	XClassHint ch = { 0 };
+	xcb_get_property_cookie_t cookie;
+	xcb_get_wm_class_reply_t *ch = NULL;
 
 	/* rule matching */
 	c->isfloating = c->tags = 0;
-	if(XGetClassHint(dpy, c->win, &ch)) {
-		class = ch.res_class ? ch.res_class : broken;
-		instance = ch.res_name ? ch.res_name : broken;
+
+	cookie = xcb_get_wm_class(xcb_dpy, c->win);
+
+	if(xcb_get_wm_class_reply(xcb_dpy, cookie, ch, NULL)) {
+		class = ch->class_name ? ch->class_name : broken;
+		instance = ch->instance_name ? ch->instance_name : broken;
 		for(i = 0; i < LENGTH(rules); i++) {
 			r = &rules[i];
 			if((!r->title || strstr(c->name, r->title))
@@ -309,10 +313,8 @@ applyrules(Client *c) {
 					c->mon = m;
 			}
 		}
-		if(ch.res_class)
-			XFree(ch.res_class);
-		if(ch.res_name)
-			XFree(ch.res_name);
+		if(ch)
+			xcb_get_wm_class_reply_wipe(ch);
 	}
 	c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tagset[c->mon->seltags];
 }
@@ -516,14 +518,19 @@ cleanupmon(Monitor *mon) {
 
 void
 clearurgent(Client *c) {
-	XWMHints *wmh;
+  xcb_get_property_cookie_t cookie;
+  xcb_wm_hints_t       *hints = NULL;
 
 	c->isurgent = False;
-	if(!(wmh = XGetWMHints(dpy, c->win)))
+	cookie = xcb_get_wm_hints(xcb_dpy, c->win);
+	if(!(xcb_get_wm_hints_reply(xcb_dpy, cookie, hints, NULL)))
 		return;
-	wmh->flags &= ~XUrgencyHint;
-	XSetWMHints(dpy, c->win, wmh);
-	XFree(wmh);
+	if (hints)
+	  {
+	    hints->flags &= ~XCB_WM_HINT_X_URGENCY;
+	    xcb_set_wm_hints(xcb_dpy, c->win, hints);
+	    free(hints);
+	  }
 }
 
 void
