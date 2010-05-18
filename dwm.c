@@ -557,6 +557,7 @@ void
 configurenotify(XEvent *e) {
 	Monitor *m;
 	XConfigureEvent *ev = &e->xconfigure;
+	uint32_t geometry[4];
 
 	if(ev->window == root) {
 		sw = ev->width;
