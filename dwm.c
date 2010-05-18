@@ -42,6 +42,7 @@
 
 #include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
+#include <xcb/xcb_keysyms.h>
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
@@ -161,16 +162,16 @@ static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
-static void buttonpress(XEvent *e);
+static void buttonpress(xcb_generic_event_t *e);
 static void checkotherwm(void);
 static void cleanup(void);
 static void cleanupmon(Monitor *mon);
 static void clearurgent(Client *c);
 static void configure(Client *c);
-static void configurenotify(XEvent *e);
-static void configurerequest(XEvent *e);
+static void configurenotify(xcb_generic_event_t *e);
+static void configurerequest(xcb_generic_event_t *e);
 static Monitor *createmon(void);
-static void destroynotify(XEvent *e);
+static void destroynotify(xcb_generic_event_t *e);
 static void detach(Client *c);
 static void detachstack(Client *c);
 static void die(const char *errstr, ...);
@@ -179,10 +180,10 @@ static void drawbar(Monitor *m);
 static void drawbars(void);
 static void drawsquare(Bool filled, Bool empty, Bool invert, unsigned long col[ColLast]);
 static void drawtext(const char *text, unsigned long col[ColLast], Bool invert);
-static void enternotify(XEvent *e);
-static void expose(XEvent *e);
+static void enternotify(xcb_generic_event_t *e);
+static void expose(xcb_generic_event_t *e);
 static void focus(Client *c);
-static void focusin(XEvent *e);
+static void focusin(xcb_generic_event_t *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static unsigned long getcolor(const char *colstr);
@@ -193,16 +194,16 @@ static void grabbuttons(Client *c, Bool focused);
 static void grabkeys(void);
 static void initfont(const char *fontstr);
 static Bool isprotodel(Client *c);
-static void keypress(XEvent *e);
+static void keypress(xcb_generic_event_t *e);
 static void killclient(const Arg *arg);
 static void manage(Window w, XWindowAttributes *wa);
-static void mappingnotify(XEvent *e);
-static void maprequest(XEvent *e);
+static void mappingnotify(xcb_generic_event_t *e);
+static void maprequest(xcb_generic_event_t *e);
 static void monocle(Monitor *m);
 static void movemouse(const Arg *arg);
 static Client *nexttiled(Client *c);
 static Monitor *ptrtomon(int x, int y);
-static void propertynotify(XEvent *e);
+static void propertynotify(xcb_generic_event_t *e);
 static void quit(const Arg *arg);
 static void resize(Client *c, int x, int y, int w, int h, Bool interact);
 static void resizemouse(const Arg *arg);
@@ -227,7 +228,7 @@ static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unfocus(Client *c);
 static void unmanage(Client *c, Bool destroyed);
-static void unmapnotify(XEvent *e);
+static void unmapnotify(xcb_generic_event_t *e);
 static Bool updategeom(void);
 static void updatebarpos(Monitor *m);
 static void updatebars(void);
@@ -254,9 +255,9 @@ static int sw, sh;           /* X display screen geometry width, height */
 static int bh, blw = 0;      /* bar geometry */
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 static unsigned int numlockmask = 0;
-static void (*handler[LASTEvent]) (XEvent *) = {
-	[ButtonPress] = buttonpress,
-	[ConfigureRequest] = configurerequest,
+static void (*handler[LASTEvent]) (xcb_generic_event_t *) = {
+	[XCB_BUTTON_PRESS] = buttonpress,
+	[XCB_CONFIGURE_REQUEST] = configurerequest,
 	[ConfigureNotify] = configurenotify,
 	[DestroyNotify] = destroynotify,
 	[EnterNotify] = enternotify,
@@ -423,42 +424,42 @@ attachstack(Client *c) {
 }
 
 void
-buttonpress(XEvent *e) {
+buttonpress(xcb_generic_event_t *e) {
 	unsigned int i, x, click;
 	Arg arg = {0};
 	Client *c;
 	Monitor *m;
-	XButtonPressedEvent *ev = &e->xbutton;
+	xcb_button_press_event_t *ev = (xcb_button_press_event_t *)e;
 
 	click = ClkRootWin;
 	/* focus monitor if necessary */
-	if((m = wintomon(ev->window)) && m != selmon) {
+	if((m = wintomon(ev->event)) && m != selmon) {
 		unfocus(selmon->sel);
 		selmon = m;
 		focus(NULL);
 	}
-	if(ev->window == selmon->barwin) {
+	if(ev->event == selmon->barwin) {
 		i = x = 0;
 		do {
 			x += TEXTW(tags[i]);
-		} while(ev->x >= x && ++i < LENGTH(tags));
+		} while(ev->event_x >= x && ++i < LENGTH(tags));
 		if(i < LENGTH(tags)) {
 			click = ClkTagBar;
 			arg.ui = 1 << i;
 		}
-		else if(ev->x < x + blw)
+		else if(ev->event_x < x + blw)
 			click = ClkLtSymbol;
-		else if(ev->x > selmon->wx + selmon->ww - TEXTW(stext))
+		else if(ev->event_x > selmon->wx + selmon->ww - TEXTW(stext))
 			click = ClkStatusText;
 		else
 			click = ClkWinTitle;
 	}
-	else if((c = wintoclient(ev->window))) {
+	else if((c = wintoclient(ev->event))) {
 		focus(c);
 		click = ClkClientWin;
 	}
 	for(i = 0; i < LENGTH(buttons); i++)
-		if(click == buttons[i].click && buttons[i].func && buttons[i].button == ev->button
+		if(click == buttons[i].click && buttons[i].func && buttons[i].button == ev->detail
 		&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state))
 			buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
 }
@@ -513,8 +514,8 @@ cleanupmon(Monitor *mon) {
 		for(m = mons; m && m->next != mon; m = m->next);
 		m->next = mon->next;
 	}
-	XUnmapWindow(dpy, mon->barwin);
-	XDestroyWindow(dpy, mon->barwin);
+	xcb_unmap_window(xcb_dpy, mon->barwin);
+	xcb_destroy_window(xcb_dpy, mon->barwin);
 	free(mon);
 }
 
@@ -554,9 +555,9 @@ configure(Client *c) {
 }
 
 void
-configurenotify(XEvent *e) {
+configurenotify(xcb_generic_event_t *e) {
 	Monitor *m;
-	XConfigureEvent *ev = &e->xconfigure;
+	xcb_configure_notify_event_t *ev = (xcb_configure_notify_event_t *)e;
 	uint32_t geometry[4];
 
 	if(ev->window == root) {
@@ -580,10 +581,10 @@ configurenotify(XEvent *e) {
 }
 
 void
-configurerequest(XEvent *e) {
+configurerequest(xcb_generic_event_t *e) {
 	Client *c;
 	Monitor *m;
-	XConfigureRequestEvent *ev = &e->xconfigurerequest;
+	xcb_configure_request_event_t *ev = (xcb_configure_request_event_t *)e;
 	XWindowChanges wc;
 
 	if((c = wintoclient(ev->window))) {
@@ -617,8 +618,8 @@ configurerequest(XEvent *e) {
 		wc.width = ev->width;
 		wc.height = ev->height;
 		wc.border_width = ev->border_width;
-		wc.sibling = ev->above;
-		wc.stack_mode = ev->detail;
+		wc.sibling = ev->sibling;
+		wc.stack_mode = ev->stack_mode;
 		XConfigureWindow(dpy, ev->window, ev->value_mask, &wc);
 	}
 	XSync(dpy, False);
@@ -641,9 +642,9 @@ createmon(void) {
 }
 
 void
-destroynotify(XEvent *e) {
+destroynotify(xcb_generic_event_t *e) {
 	Client *c;
-	XDestroyWindowEvent *ev = &e->xdestroywindow;
+	xcb_destroy_notify_event_t *ev = (xcb_destroy_notify_event_t *)e;
 
 	if((c = wintoclient(ev->window)))
 		unmanage(c, True);
@@ -805,27 +806,27 @@ drawtext(const char *text, unsigned long col[ColLast], Bool invert) {
 }
 
 void
-enternotify(XEvent *e) {
+enternotify(xcb_generic_event_t *e) {
 	Client *c;
 	Monitor *m;
-	XCrossingEvent *ev = &e->xcrossing;
+	xcb_enter_notify_event_t *ev = (xcb_enter_notify_event_t *)e;
 
-	if((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->window != root)
+	if((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->event != root)
 		return;
-	if((m = wintomon(ev->window)) && m != selmon) {
+	if((m = wintomon(ev->event)) && m != selmon) {
 		unfocus(selmon->sel);
 		selmon = m;
 	}
-	if((c = wintoclient(ev->window)))
+	if((c = wintoclient(ev->event)))
 		focus(c);
 	else
 		focus(NULL);
 }
 
 void
-expose(XEvent *e) {
+expose(xcb_generic_event_t *e) {
 	Monitor *m;
-	XExposeEvent *ev = &e->xexpose;
+	xcb_expose_event_t *ev = (xcb_expose_event_t *)e;
 
 	if(ev->count == 0 && (m = wintomon(ev->window)))
 		drawbar(m);
@@ -855,10 +856,10 @@ focus(Client *c) {
 }
 
 void
-focusin(XEvent *e) { /* there are some broken focus acquiring clients */
-	XFocusChangeEvent *ev = &e->xfocus;
+focusin(xcb_generic_event_t *e) { /* there are some broken focus acquiring clients */
+  xcb_focus_in_event_t *ev = (xcb_focus_in_event_t *)e;
 
-	if(selmon->sel && ev->window != selmon->sel->win)
+	if(selmon->sel && ev->event != selmon->sel->win)
 		XSetInputFocus(dpy, selmon->sel->win, RevertToPointerRoot, CurrentTime);
 }
 
@@ -1067,13 +1068,12 @@ isuniquegeom(XineramaScreenInfo *unique, size_t len, XineramaScreenInfo *info) {
 #endif /* XINERAMA */
 
 void
-keypress(XEvent *e) {
+keypress(xcb_generic_event_t *e) {
 	unsigned int i;
 	KeySym keysym;
-	XKeyEvent *ev;
+	xcb_key_press_event_t *ev = (xcb_key_press_event_t *)e;
 
-	ev = &e->xkey;
-	keysym = XKeycodeToKeysym(dpy, (KeyCode)ev->keycode, 0);
+	keysym = XKeycodeToKeysym(dpy, (KeyCode)ev->detail, 0);
 	for(i = 0; i < LENGTH(keys); i++)
 		if(keysym == keys[i].keysym
 		&& CLEANMASK(keys[i].mod) == CLEANMASK(ev->state)
@@ -1171,18 +1171,18 @@ manage(Window w, XWindowAttributes *wa) {
 }
 
 void
-mappingnotify(XEvent *e) {
-	XMappingEvent *ev = &e->xmapping;
+mappingnotify(xcb_generic_event_t *e) {
+  xcb_mapping_notify_event_t *ev = (xcb_mapping_notify_event_t *)e;
 
-	XRefreshKeyboardMapping(ev);
-	if(ev->request == MappingKeyboard)
+  xcb_refresh_keyboard_mapping(NULL, ev);
+	if(ev->request == XCB_MAPPING_KEYBOARD)
 		grabkeys();
 }
 
 void
-maprequest(XEvent *e) {
+maprequest(xcb_generic_event_t *e) {
 	static XWindowAttributes wa;
-	XMapRequestEvent *ev = &e->xmaprequest;
+	xcb_map_request_event_t *ev = (xcb_map_request_event_t *)e;
 
 	if(!XGetWindowAttributes(dpy, ev->window, &wa))
 		return;
@@ -1211,7 +1211,8 @@ movemouse(const Arg *arg) {
 	int x, y, ocx, ocy, nx, ny;
 	Client *c;
 	Monitor *m;
-	XEvent ev;
+	xcb_generic_event_t *ev;
+	xcb_motion_notify_event_t *e;
 
 	if(!(c = selmon->sel))
 		return;
@@ -1224,16 +1225,19 @@ movemouse(const Arg *arg) {
 	if(!getrootptr(&x, &y))
 		return;
 	do {
-		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
-		switch (ev.type) {
+	  // XCB does not provide an alternative to XMaskEvent
+	  ev = xcb_wait_for_event(xcb_dpy);
+	  if (!ev) continue;
+		switch (ev->response_type) {
 		case ConfigureRequest:
 		case Expose:
 		case MapRequest:
-			handler[ev.type](&ev);
+			handler[ev->response_type](ev);
 			break;
 		case MotionNotify:
-			nx = ocx + (ev.xmotion.x - x);
-			ny = ocy + (ev.xmotion.y - y);
+		  e = (xcb_motion_notify_event_t *)ev;
+			nx = ocx + (e->event_x - x);
+			ny = ocy + (e->event_y - y);
 			if(snap && nx >= selmon->wx && nx <= selmon->wx + selmon->ww
 			&& ny >= selmon->wy && ny <= selmon->wy + selmon->wh) {
 				if(abs(selmon->wx - nx) < snap)
@@ -1252,7 +1256,7 @@ movemouse(const Arg *arg) {
 				resize(c, nx, ny, c->w, c->h, True);
 			break;
 		}
-	} while(ev.type != ButtonRelease);
+	} while(ev->response_type != ButtonRelease);
 	XUngrabPointer(dpy, CurrentTime);
 	if((m = ptrtomon(c->x + c->w / 2, c->y + c->h / 2)) != selmon) {
 		sendmon(c, m);
@@ -1278,10 +1282,10 @@ ptrtomon(int x, int y) {
 }
 
 void
-propertynotify(XEvent *e) {
+propertynotify(xcb_generic_event_t *e) {
 	Client *c;
 	Window trans;
-	XPropertyEvent *ev = &e->xproperty;
+	xcb_property_notify_event_t *ev = (xcb_property_notify_event_t *)e;
 
 	if((ev->window == root) && (ev->atom == XA_WM_NAME))
 		updatestatus();
@@ -1339,7 +1343,8 @@ resizemouse(const Arg *arg) {
 	int nw, nh;
 	Client *c;
 	Monitor *m;
-	XEvent ev;
+	xcb_generic_event_t *ev;
+	xcb_motion_notify_event_t *e;
 
 	if(!(c = selmon->sel))
 		return;
@@ -1351,16 +1356,18 @@ resizemouse(const Arg *arg) {
 		return;
 	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
 	do {
-		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
-		switch(ev.type) {
+	        // XCB does not provide an equivalent for XMaskEvent
+	        ev = xcb_wait_for_event(xcb_dpy);
+		switch(ev->response_type) {
 		case ConfigureRequest:
 		case Expose:
 		case MapRequest:
-			handler[ev.type](&ev);
+			handler[ev->response_type](ev);
 			break;
 		case MotionNotify:
-			nw = MAX(ev.xmotion.x - ocx - 2 * c->bw + 1, 1);
-			nh = MAX(ev.xmotion.y - ocy - 2 * c->bw + 1, 1);
+		        e = (xcb_motion_notify_event_t *)ev;
+			nw = MAX(e->event_x - ocx - 2 * c->bw + 1, 1);
+			nh = MAX(e->event_y - ocy - 2 * c->bw + 1, 1);
 			if(snap && nw >= selmon->wx && nw <= selmon->wx + selmon->ww
 			&& nh >= selmon->wy && nh <= selmon->wy + selmon->wh)
 			{
@@ -1372,10 +1379,10 @@ resizemouse(const Arg *arg) {
 				resize(c, c->x, c->y, nw, nh, True);
 			break;
 		}
-	} while(ev.type != ButtonRelease);
+	} while(ev->response_type != ButtonRelease);
 	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
 	XUngrabPointer(dpy, CurrentTime);
-	while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
+	// while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 	if((m = ptrtomon(c->x + c->w / 2, c->y + c->h / 2)) != selmon) {
 		sendmon(c, m);
 		selmon = m;
@@ -1409,13 +1416,13 @@ restack(Monitor *m) {
 
 void
 run(void) {
-	XEvent ev;
+  xcb_generic_event_t *ev;
 
 	/* main event loop */
-	XSync(dpy, False);
-	while(running && !XNextEvent(dpy, &ev))
-		if(handler[ev.type])
-			handler[ev.type](&ev); /* call handler */
+	xcb_flush(xcb_dpy);
+	while(running && (ev = xcb_wait_for_event(xcb_dpy)))
+		if(handler[ev->response_type])
+			handler[ev->response_type](ev); /* call handler */
 }
 
 void
@@ -1718,9 +1725,9 @@ unmanage(Client *c, Bool destroyed) {
 }
 
 void
-unmapnotify(XEvent *e) {
+unmapnotify(xcb_generic_event_t *e) {
 	Client *c;
-	XUnmapEvent *ev = &e->xunmap;
+	xcb_unmap_notify_event_t *ev = (xcb_unmap_notify_event_t *)e;
 
 	if((c = wintoclient(ev->window)))
 		unmanage(c, False);
