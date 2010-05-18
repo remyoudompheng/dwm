@@ -232,6 +232,8 @@ static void updatestatus(void);
 static void updatetitle(Client *c);
 static void updatewmhints(Client *c);
 static void view(const Arg *arg);
+static void viewnext(const Arg *arg);
+static void viewprev(const Arg *arg);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
@@ -1918,6 +1920,25 @@ view(const Arg *arg) {
 	if(arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
 	arrange(selmon);
+}
+
+void
+viewprev(const Arg *arg) {
+  unsigned int currentset = selmon->tagset[selmon->seltags];
+  currentset = currentset | ((currentset & 1) << LENGTH(tags));
+  selmon->seltags ^= 1;
+  selmon->tagset[selmon->seltags] = currentset >> 1;
+  arrange(selmon);
+}
+
+void
+viewnext(const Arg *arg) {
+  unsigned int currentset = selmon->tagset[selmon->seltags];
+  currentset <<= 1;
+  currentset |= (currentset & (1LL << LENGTH(tags))) >> LENGTH(tags);
+  selmon->seltags ^= 1;
+  selmon->tagset[selmon->seltags] = currentset;
+  arrange(selmon);
 }
 
 Client *
