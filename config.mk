@@ -16,7 +16,7 @@ XINERAMAFLAGS = -DXINERAMA
 
 # includes and libs
 INCS = -I. -I/usr/include -I${X11INC}
-LIBS = -L/usr/lib -lc -L${X11LIB} -lX11 ${XINERAMALIBS}
+LIBS = -L/usr/lib -lc -L${X11LIB} -lxcb-icccm -lxcb -lX11 ${XINERAMALIBS}
 
 # flags
 CPPFLAGS = -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}

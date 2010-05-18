@@ -40,6 +40,9 @@
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
 
+#include <xcb/xcb.h>
+#include <xcb/xcb_icccm.h>
+
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask))
@@ -268,6 +271,7 @@ static Bool otherwm;
 static Bool running = True;
 static Cursor cursor[CurLast];
 static Display *dpy;
+static xcb_connection_t *xcb_dpy;
 static DC dc;
 static Monitor *mons = NULL, *selmon = NULL;
 static Window root;
@@ -2029,11 +2033,14 @@ main(int argc, char *argv[]) {
 		fputs("warning: no locale support\n", stderr);
 	if(!(dpy = XOpenDisplay(NULL)))
 		die("dwm: cannot open display\n");
+	if(!(xcb_dpy = xcb_connect(NULL,0)))
+		die("dwm: cannot open XCB connection to display\n");
 	checkotherwm();
 	setup();
 	scan();
 	run();
 	cleanup();
 	XCloseDisplay(dpy);
+	xcb_disconnect(xcb_dpy);
 	return 0;
 }
