@@ -57,6 +57,8 @@
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define TEXTW(X)                (textnw(X, strlen(X)) + dc.font.height)
 
+#define XCB_CONFIG_MOVERESIZE   (XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT)
+
 /* enums */
 enum { CurNormal, CurResize, CurMove, CurLast };        /* cursor */
 enum { ColBorder, ColFG, ColBG, ColLast };              /* color */
@@ -85,7 +87,7 @@ typedef struct Client Client;
 struct Client {
 	char name[256];
 	float mina, maxa;
-	int x, y, w, h;
+	uint32_t x, y, w, h;
 	int basew, baseh, incw, inch, maxw, maxh, minw, minh;
 	int bw, oldbw;
 	unsigned int tags;
@@ -564,8 +566,13 @@ configurenotify(XEvent *e) {
 				XFreePixmap(dpy, dc.drawable);
 			dc.drawable = XCreatePixmap(dpy, root, sw, bh, DefaultDepth(dpy, screen));
 			updatebars();
-			for(m = mons; m; m = m->next)
-				XMoveResizeWindow(dpy, m->barwin, m->wx, m->by, m->ww, bh);
+			for(m = mons; m; m = m->next) {
+			  geometry[0] = m->wx;
+			  geometry[1] = m->by;
+			  geometry[2] = m->ww;
+			  geometry[3] = bh;
+			  xcb_configure_window(xcb_dpy, m->barwin, XCB_CONFIG_MOVERESIZE, geometry);
+			}
 			arrange(NULL);
 		}
 	}
@@ -1310,17 +1317,18 @@ quit(const Arg *arg) {
 
 void
 resize(Client *c, int x, int y, int w, int h, Bool interact) {
-	XWindowChanges wc;
+	uint32_t geom[5];
 
 	if(applysizehints(c, &x, &y, &w, &h, interact)) {
-		c->x = wc.x = x;
-		c->y = wc.y = y;
-		c->w = wc.width = w;
-		c->h = wc.height = h;
-		wc.border_width = c->bw;
-		XConfigureWindow(dpy, c->win, CWX|CWY|CWWidth|CWHeight|CWBorderWidth, &wc);
+		c->x = geom[0] = x;
+		c->y = geom[1] = y;
+		c->w = geom[2] = w;
+		c->h = geom[3] = h;
+		geom[4] = c->bw;
+		xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE |
+				     XCB_CONFIG_WINDOW_BORDER_WIDTH, geom);
 		configure(c);
-		XSync(dpy, False);
+		xcb_flush(xcb_dpy);
 	}
 }
 
@@ -1635,7 +1643,9 @@ void
 togglebar(const Arg *arg) {
 	selmon->showbar = !selmon->showbar;
 	updatebarpos(selmon);
-	XMoveResizeWindow(dpy, selmon->barwin, selmon->wx, selmon->by, selmon->ww, bh);
+	uint32_t geom[4];
+	geom[0] = selmon->wx; geom[1] = selmon->by; geom[2] = selmon->ww; geom[3] = bh;
+	xcb_configure_window(xcb_dpy, selmon->barwin, XCB_CONFIG_MOVERESIZE, geom);
 	arrange(selmon);
 }
 
