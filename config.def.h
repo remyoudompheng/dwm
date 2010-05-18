@@ -19,7 +19,13 @@ static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 static const Rule rules[] = {
 	/* class      instance    title       tags mask     isfloating   monitor */
 	{ "Gimp",     NULL,       NULL,       0,            True,        -1 },
+    // ImageMagick
+	{ "display",  NULL,       NULL,       0,            True,        -1 },
+	// Various browsers
 	{ "Firefox",  NULL,       NULL,       1 << 8,       False,       -1 },
+	{ "Namoroka", NULL,       NULL,       1 << 8,       False,       -1 },
+	{ "Midori",   NULL,       NULL,       1 << 8,       False,       -1 },
+	{ "Epiphany", NULL,       NULL,       1 << 8,       False,       -1 },
 };
 
 /* layout(s) */
@@ -55,6 +61,8 @@ static Key keys[] = {
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
 	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
+	{ Mod1Mask,                     XK_Tab,    focusstack,     {.i = +1 } },
+	{ Mod1Mask|ShiftMask,           XK_Tab,    focusstack,     {.i = -1 } },
 	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
 	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
 	{ MODKEY,                       XK_Return, zoom,           {0} },
