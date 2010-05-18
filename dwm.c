@@ -700,7 +700,7 @@ drawbar(Monitor *m) {
 		col = m->tagset[m->seltags] & 1 << i ? dc.sel : dc.norm;
 		drawtext(tags[i], col, urg & 1 << i);
 		drawsquare(m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
-		           occ & 1 << i, urg & 1 << i, col);
+			   occ & 1 << i, urg & 1 << i, col);
 		dc.x += dc.w;
 	}
 	dc.w = blw = TEXTW(m->ltsymbol);
@@ -913,7 +913,7 @@ getstate(Window w) {
 	Atom real;
 
 	status = XGetWindowProperty(dpy, w, wmatom[WMState], 0L, 2L, False, wmatom[WMState],
-	                            &real, &format, &n, &extra, (unsigned char **)&p);
+				    &real, &format, &n, &extra, (unsigned char **)&p);
 	if(status != Success)
 		return -1;
 	if(n != 0)
@@ -959,13 +959,13 @@ grabbuttons(Client *c, Bool focused) {
 				if(buttons[i].click == ClkClientWin)
 					for(j = 0; j < LENGTH(modifiers); j++)
 						XGrabButton(dpy, buttons[i].button,
-						            buttons[i].mask | modifiers[j],
-						            c->win, False, BUTTONMASK,
-						            GrabModeAsync, GrabModeSync, None, None);
+							    buttons[i].mask | modifiers[j],
+							    c->win, False, BUTTONMASK,
+							    GrabModeAsync, GrabModeSync, None, None);
 		}
 		else
 			XGrabButton(dpy, AnyButton, AnyModifier, c->win, False,
-			            BUTTONMASK, GrabModeAsync, GrabModeSync, None, None);
+				    BUTTONMASK, GrabModeAsync, GrabModeSync, None, None);
 	}
 }
 
@@ -1133,7 +1133,7 @@ manage(Window w, XWindowAttributes *wa) {
 		c->x = MAX(c->x, c->mon->mx);
 		/* only fix client y-offset, if the client center might cover the bar */
 		c->y = MAX(c->y, ((c->mon->by == 0) && (c->x + (c->w / 2) >= c->mon->wx)
-		           && (c->x + (c->w / 2) < c->mon->wx + c->mon->ww)) ? bh : c->mon->my);
+			   && (c->x + (c->w / 2) < c->mon->wx + c->mon->ww)) ? bh : c->mon->my);
 		c->bw = borderpx;
 	}
 	wc.border_width = c->bw;
@@ -1331,7 +1331,7 @@ resizemouse(const Arg *arg) {
 	ocx = c->x;
 	ocy = c->y;
 	if(XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-	                None, cursor[CurResize], CurrentTime) != GrabSuccess)
+			None, cursor[CurResize], CurrentTime) != GrabSuccess)
 		return;
 	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
 	do {
@@ -1524,8 +1524,8 @@ setup(void) {
 	/* select for events */
 	wa.cursor = cursor[CurNormal];
 	wa.event_mask = SubstructureRedirectMask|SubstructureNotifyMask|ButtonPressMask
-	                |EnterWindowMask|LeaveWindowMask|StructureNotifyMask
-	                |PropertyChangeMask;
+			|EnterWindowMask|LeaveWindowMask|StructureNotifyMask
+			|PropertyChangeMask;
 	XChangeWindowAttributes(dpy, root, CWEventMask|CWCursor, &wa);
 	XSelectInput(dpy, root, wa.event_mask);
 	grabkeys();
@@ -1718,8 +1718,8 @@ updatebars(void) {
 	wa.event_mask = ButtonPressMask|ExposureMask;
 	for(m = mons; m; m = m->next) {
 		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bh, 0, DefaultDepth(dpy, screen),
-		                          CopyFromParent, DefaultVisual(dpy, screen),
-		                          CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
+					  CopyFromParent, DefaultVisual(dpy, screen),
+					  CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
 		XDefineCursor(dpy, m->barwin, cursor[CurNormal]);
 		XMapRaised(dpy, m->barwin);
 	}
@@ -1883,7 +1883,7 @@ updatesizehints(Client *c) {
 	else
 		c->maxa = c->mina = 0.0;
 	c->isfixed = (c->maxw && c->minw && c->maxh && c->minh
-	             && c->maxw == c->minw && c->maxh == c->minh);
+		     && c->maxw == c->minw && c->maxh == c->minh);
 }
 
 void
