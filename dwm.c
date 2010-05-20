@@ -142,7 +142,7 @@ struct Monitor {
   Client *sel;
   Client *stack;
   Monitor *next;
-  Window barwin;
+  xcb_window_t barwin;
   const Layout *lt[2];
 };
 
@@ -1736,18 +1736,25 @@ unmapnotify(xcb_generic_event_t *e) {
 void
 updatebars(void) {
   Monitor *m;
-  XSetWindowAttributes wa;
+  uint32_t wa[3];
 
-  wa.override_redirect = True;
-  wa.background_pixmap = ParentRelative;
-  wa.event_mask = ButtonPressMask|ExposureMask;
+  wa[1] = 1;
+  wa[0] = XCB_BACK_PIXMAP_PARENT_RELATIVE;
+  wa[2] = XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_EXPOSURE;
   for(m = mons; m; m = m->next) {
-    m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bh, 0, DefaultDepth(dpy, screen),
-			      CopyFromParent, DefaultVisual(dpy, screen),
-			      CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
-    XDefineCursor(dpy, m->barwin, cursor[CurNormal]);
-    XMapRaised(dpy, m->barwin);
+    m->barwin = xcb_generate_id(xcb_dpy);
+    xcb_create_window(xcb_dpy, screen->root_depth, m->barwin,
+		      root, m->wx, m->by, m->ww, bh, 0,
+		      XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
+		      XCB_CW_BACK_PIXMAP | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK,
+		      wa);
+    uint32_t mask = XCB_CW_CURSOR;
+    uint32_t value_list = cursor[CurNormal];
+    xcb_change_window_attributes(xcb_dpy, m->barwin, mask, &value_list);
+    xcb_map_window(xcb_dpy, m->barwin);
   }
+
+  xcb_flush(xcb_dpy);
 }
 
 void
