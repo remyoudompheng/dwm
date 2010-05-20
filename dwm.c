@@ -1001,7 +1001,7 @@ grabkeys(void) {
     for(i = 0; i < LENGTH(keys); i++) {
       if((code = xcb_key_symbols_get_keycode(keysyms, keys[i].keysym)))
 	for(j = 0; j < LENGTH(modifiers); j++)
-	  xcb_grab_key(xcb_dpy, 0, root,
+	  xcb_grab_key(xcb_dpy, True, root,
 		       keys[i].mod | modifiers[j], code[0],
 		       XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
     }
@@ -1075,10 +1075,10 @@ isuniquegeom(XineramaScreenInfo *unique, size_t len, XineramaScreenInfo *info) {
 void
 keypress(xcb_generic_event_t *e) {
   unsigned int i;
-  KeySym keysym;
+  xcb_keysym_t keysym;
   xcb_key_press_event_t *ev = (xcb_key_press_event_t *)e;
 
-  keysym = XKeycodeToKeysym(dpy, (KeyCode)ev->detail, 0);
+  keysym = xcb_key_symbols_get_keysym(keysyms, ev->detail, 0);
   for(i = 0; i < LENGTH(keys); i++)
     if(keysym == keys[i].keysym
        && CLEANMASK(keys[i].mod) == CLEANMASK(ev->state)
