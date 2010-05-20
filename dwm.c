@@ -250,8 +250,10 @@ static void zoom(const Arg *arg);
 /* variables */
 static const char broken[] = "broken";
 static char stext[256];
-static int screen;
-static int sw, sh;           /* X display screen geometry width, height */
+static xcb_screen_t *screen;  /* X display screen structure */
+/* X display screen geometry width, height */
+#define sw (screen->width_in_pixels)
+#define sh (screen->height_in_pixels)
 static int bh, blw = 0;      /* bar geometry */
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 static unsigned int numlockmask = 0;
@@ -278,7 +280,7 @@ static Display *dpy;
 static xcb_connection_t *xcb_dpy;
 static DC dc;
 static Monitor *mons = NULL, *selmon = NULL;
-static Window root;
+static xcb_window_t root;
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -566,7 +568,7 @@ configurenotify(xcb_generic_event_t *e) {
 		if(updategeom()) {
 			if(dc.drawable != 0)
 				XFreePixmap(dpy, dc.drawable);
-			dc.drawable = XCreatePixmap(dpy, root, sw, bh, DefaultDepth(dpy, screen));
+			dc.drawable = XCreatePixmap(dpy, root, sw, bh, screen->root_depth);
 			updatebars();
 			for(m = mons; m; m = m->next) {
 			  geometry[0] = m->wx;
@@ -903,7 +905,7 @@ focusstack(const Arg *arg) {
 
 unsigned long
 getcolor(const char *colstr) {
-	Colormap cmap = DefaultColormap(dpy, screen);
+	Colormap cmap = screen->default_colormap;
 	XColor color;
 
 	if(!XAllocNamedColor(dpy, cmap, colstr, &color, &color))
@@ -1509,11 +1511,9 @@ setup(void) {
 	sigchld(0);
 
 	/* init screen */
-	screen = DefaultScreen(dpy);
-	root = RootWindow(dpy, screen);
+	screen = xcb_setup_roots_iterator(xcb_get_setup(xcb_dpy)).data;
+	root = screen->root;
 	initfont(font);
-	sw = DisplayWidth(dpy, screen);
-	sh = DisplayHeight(dpy, screen);
 	bh = dc.h = dc.font.height + 2;
 	updategeom();
 	/* init atoms */
@@ -1533,7 +1533,7 @@ setup(void) {
 	dc.sel[ColBorder] = getcolor(selbordercolor);
 	dc.sel[ColBG] = getcolor(selbgcolor);
 	dc.sel[ColFG] = getcolor(selfgcolor);
-	dc.drawable = XCreatePixmap(dpy, root, DisplayWidth(dpy, screen), bh, DefaultDepth(dpy, screen));
+	dc.drawable = XCreatePixmap(dpy, root, sw, bh, screen->root_depth);
 	dc.gc = XCreateGC(dpy, root, 0, NULL);
 	XSetLineAttributes(dpy, dc.gc, 1, LineSolid, CapButt, JoinMiter);
 	if(!dc.font.set)
