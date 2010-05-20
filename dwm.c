@@ -272,10 +272,10 @@ static void (*handler[LASTEvent]) (xcb_generic_event_t *) = {
   [XCB_PROPERTY_NOTIFY] = propertynotify,
   [XCB_UNMAP_NOTIFY] = unmapnotify
 };
-static Atom wmatom[WMLast], netatom[NetLast];
+static xcb_atom_t wmatom[WMLast], netatom[NetLast];
 static Bool otherwm;
 static Bool running = True;
-static Cursor cursor[CurLast];
+static xcb_cursor_t cursor[CurLast];
 static Display *dpy;
 static xcb_connection_t *xcb_dpy;
 static DC dc;
@@ -497,11 +497,12 @@ cleanup(void) {
   XUngrabKey(dpy, AnyKey, AnyModifier, root);
   XFreePixmap(dpy, dc.drawable);
   XFreeGC(dpy, dc.gc);
-  XFreeCursor(dpy, cursor[CurNormal]);
-  XFreeCursor(dpy, cursor[CurResize]);
-  XFreeCursor(dpy, cursor[CurMove]);
+  xcb_free_cursor(xcb_dpy, cursor[CurNormal]);
+  xcb_free_cursor(xcb_dpy, cursor[CurResize]);
+  xcb_free_cursor(xcb_dpy, cursor[CurMove]);
   while(mons)
     cleanupmon(mons);
+  xcb_flush(xcb_dpy);
   XSync(dpy, False);
   XSetInputFocus(dpy, PointerRoot, RevertToPointerRoot, CurrentTime);
 }
@@ -1505,8 +1506,6 @@ setmfact(const Arg *arg) {
 
 void
 setup(void) {
-  XSetWindowAttributes wa;
-
   /* clean up any zombies immediately */
   sigchld(0);
 
@@ -1517,15 +1516,37 @@ setup(void) {
   bh = dc.h = dc.font.height + 2;
   updategeom();
   /* init atoms */
-  wmatom[WMProtocols] = XInternAtom(dpy, "WM_PROTOCOLS", False);
-  wmatom[WMDelete] = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
-  wmatom[WMState] = XInternAtom(dpy, "WM_STATE", False);
-  netatom[NetSupported] = XInternAtom(dpy, "_NET_SUPPORTED", False);
-  netatom[NetWMName] = XInternAtom(dpy, "_NET_WM_NAME", False);
+  xcb_intern_atom_cookie_t atom_c[5];
+  atom_c[0] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
+  atom_c[1] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
+  atom_c[2] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_STATE"), "WM_STATE");
+  atom_c[3] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("_NET_SUPPORTED"), "_NET_SUPPORTED");
+  atom_c[4] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("_NET_WM_NAME"), "_NET_WM_NAME");
+
+  xcb_intern_atom_reply_t *atom_reply;
+  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[0], NULL);
+  if(atom_reply) { wmatom[WMProtocols] = atom_reply->atom; free(atom_reply); }
+  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[1], NULL);
+  if(atom_reply) { wmatom[WMDelete] = atom_reply->atom; free(atom_reply); }
+  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[2], NULL);
+  if(atom_reply) { wmatom[WMState] = atom_reply->atom; free(atom_reply); }
+  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[3], NULL);
+  if(atom_reply) { netatom[NetSupported] = atom_reply->atom; free(atom_reply); }
+  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[4], NULL);
+  if(atom_reply) { netatom[NetWMName] = atom_reply->atom; free(atom_reply); }
   /* init cursors */
-  cursor[CurNormal] = XCreateFontCursor(dpy, XC_left_ptr);
-  cursor[CurResize] = XCreateFontCursor(dpy, XC_sizing);
-  cursor[CurMove] = XCreateFontCursor(dpy, XC_fleur);
+  xcb_font_t font = xcb_generate_id (xcb_dpy);
+  xcb_open_font(xcb_dpy, font, strlen("cursor"), "cursor");
+  cursor[CurNormal] = xcb_generate_id(xcb_dpy);
+  cursor[CurResize] = xcb_generate_id(xcb_dpy);
+  cursor[CurMove] = xcb_generate_id(xcb_dpy);
+  xcb_create_glyph_cursor(xcb_dpy, cursor[CurNormal], font, font,
+			  XC_left_ptr, XC_left_ptr + 1, 0,0,0,0,0,0);
+  xcb_create_glyph_cursor(xcb_dpy, cursor[CurResize], font, font,
+			  XC_sizing, XC_sizing + 1, 0,0,0,0,0,0);
+  xcb_create_glyph_cursor(xcb_dpy, cursor[CurMove], font, font,
+			  XC_fleur, XC_fleur + 1, 0,0,0,0,0,0);
+  xcb_flush(xcb_dpy);
   /* init appearance */
   dc.norm[ColBorder] = getcolor(normbordercolor);
   dc.norm[ColBG] = getcolor(normbgcolor);
@@ -1545,13 +1566,16 @@ setup(void) {
   XChangeProperty(dpy, root, netatom[NetSupported], XA_ATOM, 32,
 		  PropModeReplace, (unsigned char *) netatom, NetLast);
   /* select for events */
-  wa.cursor = cursor[CurNormal];
-  wa.event_mask = SubstructureRedirectMask|SubstructureNotifyMask|ButtonPressMask
-    |EnterWindowMask|LeaveWindowMask|StructureNotifyMask
-    |PropertyChangeMask;
-  XChangeWindowAttributes(dpy, root, CWEventMask|CWCursor, &wa);
-  XSelectInput(dpy, root, wa.event_mask);
+  uint32_t wa;
+  wa = cursor[CurNormal];
+  xcb_change_window_attributes(xcb_dpy, root, XCB_CW_CURSOR, &wa);
+  wa = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+    XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW |
+    XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE;
+  xcb_change_window_attributes(xcb_dpy, root, XCB_CW_EVENT_MASK, &wa);
+  XSelectInput(dpy, root, wa);
   grabkeys();
+  xcb_flush(xcb_dpy);
 }
 
 void
@@ -1748,9 +1772,8 @@ updatebars(void) {
 		      XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
 		      XCB_CW_BACK_PIXMAP | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK,
 		      wa);
-    uint32_t mask = XCB_CW_CURSOR;
     uint32_t value_list = cursor[CurNormal];
-    xcb_change_window_attributes(xcb_dpy, m->barwin, mask, &value_list);
+    xcb_change_window_attributes(xcb_dpy, m->barwin, XCB_CW_CURSOR, &value_list);
     xcb_map_window(xcb_dpy, m->barwin);
   }
 
