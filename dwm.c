@@ -31,7 +31,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
-#include <X11/keysym.h>
+#include <X11/keysymdef.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xproto.h>
@@ -115,8 +115,8 @@ typedef struct {
 } DC; /* draw context */
 
 typedef struct {
-  unsigned int mod;
-  KeySym keysym;
+  uint16_t mod;
+  xcb_keysym_t keysym;
   void (*func)(const Arg *);
   const Arg arg;
 } Key;
@@ -495,6 +495,7 @@ cleanup(void) {
   else
     XFreeFont(dpy, dc.font.xfont);
   XUngrabKey(dpy, AnyKey, AnyModifier, root);
+  xcb_key_symbols_free(keysyms);
   XFreePixmap(dpy, dc.drawable);
   XFreeGC(dpy, dc.gc);
   xcb_free_cursor(xcb_dpy, cursor[CurNormal]);
@@ -994,14 +995,15 @@ grabkeys(void) {
   {
     unsigned int i, j;
     unsigned int modifiers[] = { 0, LockMask, numlockmask, numlockmask|LockMask };
-    KeyCode code;
+    xcb_keycode_t *code;
 
-    XUngrabKey(dpy, AnyKey, AnyModifier, root);
+    xcb_ungrab_key(xcb_dpy, AnyKey, root, AnyModifier);
     for(i = 0; i < LENGTH(keys); i++) {
-      if((code = XKeysymToKeycode(dpy, keys[i].keysym)))
+      if((code = xcb_key_symbols_get_keycode(keysyms, keys[i].keysym)))
 	for(j = 0; j < LENGTH(modifiers); j++)
-	  XGrabKey(dpy, code, keys[i].mod | modifiers[j], root,
-		   True, GrabModeAsync, GrabModeAsync);
+	  xcb_grab_key(xcb_dpy, 0, root,
+		       keys[i].mod | modifiers[j], code[0],
+		       XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
     }
   }
 }
@@ -1515,6 +1517,8 @@ setup(void) {
   initfont(font);
   bh = dc.h = dc.font.height + 2;
   updategeom();
+  /* get keysyms */
+  keysyms = xcb_key_symbols_alloc(xcb_dpy);
   /* init atoms */
   xcb_intern_atom_cookie_t atom_c[5];
   atom_c[0] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
