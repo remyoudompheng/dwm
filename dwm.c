@@ -293,16 +293,16 @@ applyrules(Client *c) {
 	const Rule *r;
 	Monitor *m;
 	xcb_get_property_cookie_t cookie;
-	xcb_get_wm_class_reply_t *ch = NULL;
+	xcb_get_wm_class_reply_t ch;
 
 	/* rule matching */
 	c->isfloating = c->tags = 0;
 
-	cookie = xcb_get_wm_class(xcb_dpy, c->win);
+	cookie = xcb_get_wm_class_unchecked(xcb_dpy, c->win);
 
-	if(xcb_get_wm_class_reply(xcb_dpy, cookie, ch, NULL)) {
-		class = ch->class_name ? ch->class_name : broken;
-		instance = ch->instance_name ? ch->instance_name : broken;
+	if(xcb_get_wm_class_reply(xcb_dpy, cookie, &ch, NULL)) {
+		class = ch.class_name ? ch.class_name : broken;
+		instance = ch.instance_name ? ch.instance_name : broken;
 		for(i = 0; i < LENGTH(rules); i++) {
 			r = &rules[i];
 			if((!r->title || strstr(c->name, r->title))
@@ -316,9 +316,8 @@ applyrules(Client *c) {
 					c->mon = m;
 			}
 		}
-		if(ch)
-			xcb_get_wm_class_reply_wipe(ch);
 	}
+	xcb_get_wm_class_reply_wipe(&ch);
 	c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tagset[c->mon->seltags];
 }
 
