@@ -77,8 +77,8 @@ typedef union {
 
 typedef struct {
 	unsigned int click;
-	unsigned int mask;
-	unsigned int button;
+	uint16_t mask;
+	xcb_button_t button;
 	void (*func)(const Arg *arg);
 	const Arg arg;
 } Button;
@@ -255,19 +255,20 @@ static int sw, sh;           /* X display screen geometry width, height */
 static int bh, blw = 0;      /* bar geometry */
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 static unsigned int numlockmask = 0;
+static xcb_key_symbols_t *keysyms = 0;
 static void (*handler[LASTEvent]) (xcb_generic_event_t *) = {
 	[XCB_BUTTON_PRESS] = buttonpress,
 	[XCB_CONFIGURE_REQUEST] = configurerequest,
-	[ConfigureNotify] = configurenotify,
-	[DestroyNotify] = destroynotify,
-	[EnterNotify] = enternotify,
-	[Expose] = expose,
-	[FocusIn] = focusin,
-	[KeyPress] = keypress,
-	[MappingNotify] = mappingnotify,
-	[MapRequest] = maprequest,
-	[PropertyNotify] = propertynotify,
-	[UnmapNotify] = unmapnotify
+	[XCB_CONFIGURE_NOTIFY] = configurenotify,
+	[XCB_DESTROY_NOTIFY] = destroynotify,
+	[XCB_ENTER_NOTIFY] = enternotify,
+	[XCB_EXPOSE] = expose,
+	[XCB_FOCUS_IN] = focusin,
+	[XCB_KEY_PRESS] = keypress,
+	[XCB_MAPPING_NOTIFY] = mappingnotify,
+	[XCB_MAP_REQUEST] = maprequest,
+	[XCB_PROPERTY_NOTIFY] = propertynotify,
+	[XCB_UNMAP_NOTIFY] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast];
 static Bool otherwm;

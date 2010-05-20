@@ -97,16 +97,16 @@ static Key keys[] = {
 /* click can be ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
 static Button buttons[] = {
 	/* click                event mask      button          function        argument */
-	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
-	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
-	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
-	{ ClkStatusText,        0,              Button2,        spawn,          {.v = termcmd } },
-	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
-	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
-	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
-	{ ClkTagBar,            0,              Button1,        view,           {0} },
-	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
-	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
-	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
+	{ ClkLtSymbol,          0,              XCB_BUTTON_MASK_1,        setlayout,      {0} },
+	{ ClkLtSymbol,          0,              XCB_BUTTON_MASK_3,        setlayout,      {.v = &layouts[2]} },
+	{ ClkWinTitle,          0,              XCB_BUTTON_MASK_2,        zoom,           {0} },
+	{ ClkStatusText,        0,              XCB_BUTTON_MASK_2,        spawn,          {.v = termcmd } },
+	{ ClkClientWin,         MODKEY,         XCB_BUTTON_MASK_1,        movemouse,      {0} },
+	{ ClkClientWin,         MODKEY,         XCB_BUTTON_MASK_2,        togglefloating, {0} },
+	{ ClkClientWin,         MODKEY,         XCB_BUTTON_MASK_3,        resizemouse,    {0} },
+	{ ClkTagBar,            0,              XCB_BUTTON_MASK_1,        view,           {0} },
+	{ ClkTagBar,            0,              XCB_BUTTON_MASK_3,        toggleview,     {0} },
+	{ ClkTagBar,            MODKEY,         XCB_BUTTON_MASK_1,        tag,            {0} },
+	{ ClkTagBar,            MODKEY,         XCB_BUTTON_MASK_3,        toggletag,      {0} },
 };
 
