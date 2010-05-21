@@ -96,7 +96,7 @@ struct Client {
   Client *next;
   Client *snext;
   Monitor *mon;
-  Window win;
+  xcb_window_t win;
 };
 
 typedef struct {
@@ -240,8 +240,8 @@ static void updatewmhints(Client *c);
 static void view(const Arg *arg);
 static void viewnext(const Arg *arg);
 static void viewprev(const Arg *arg);
-static Client *wintoclient(Window w);
-static Monitor *wintomon(Window w);
+static Client *wintoclient(xcb_window_t w);
+static Monitor *wintomon(xcb_window_t w);
 static int xerror(Display *dpy, XErrorEvent *ee);
 static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static void zoom(const Arg *arg);
@@ -2017,7 +2017,7 @@ viewnext(const Arg *arg) {
 }
 
 Client *
-wintoclient(Window w) {
+wintoclient(xcb_window_t w) {
   Client *c;
   Monitor *m;
 
@@ -2029,7 +2029,7 @@ wintoclient(Window w) {
 }
 
 Monitor *
-wintomon(Window w) {
+wintomon(xcb_window_t w) {
   int x, y;
   Client *c;
   Monitor *m;
