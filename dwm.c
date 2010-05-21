@@ -477,7 +477,7 @@ checkotherwm(void) {
   xcb_void_cookie_t cookie = xcb_change_window_attributes_checked
     (xcb_dpy, root, XCB_CW_EVENT_MASK, &mask);
   xcb_generic_error_t *error = xcb_request_check(xcb_dpy, cookie);
-  if(error)
+  if(error != NULL)
     die("dwm: another window manager is already running\n");
 }
 
@@ -1523,6 +1523,9 @@ setup(void) {
   /* init screen */
   screen = xcb_setup_roots_iterator(xcb_get_setup(xcb_dpy)).data;
   root = screen->root;
+  /* check for other WM */
+  checkotherwm();
+  /* init geometry */
   initfont(font);
   bh = dc.h = dc.font.height + 2;
   updategeom();
@@ -2095,7 +2098,6 @@ main(int argc, char *argv[]) {
     die("dwm: cannot open display\n");
   if(!(xcb_dpy = xcb_connect(NULL,0)))
     die("dwm: cannot open XCB connection to display\n");
-  checkotherwm();
   setup();
   scan();
   run();
