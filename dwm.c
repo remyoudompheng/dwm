@@ -244,7 +244,6 @@ static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
 static int xerrordummy(Display *dpy, XErrorEvent *ee);
-static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void zoom(const Arg *arg);
 
 /* variables */
@@ -273,7 +272,6 @@ static void (*handler[LASTEvent]) (xcb_generic_event_t *) = {
   [XCB_UNMAP_NOTIFY] = unmapnotify
 };
 static xcb_atom_t wmatom[WMLast], netatom[NetLast];
-static Bool otherwm;
 static Bool running = True;
 static xcb_cursor_t cursor[CurLast];
 static Display *dpy;
@@ -468,15 +466,13 @@ buttonpress(xcb_generic_event_t *e) {
 
 void
 checkotherwm(void) {
-  otherwm = False;
-  xerrorxlib = XSetErrorHandler(xerrorstart);
   /* this causes an error if some other window manager is running */
-  XSelectInput(dpy, DefaultRootWindow(dpy), SubstructureRedirectMask);
-  XSync(dpy, False);
-  if(otherwm)
+  uint32_t mask = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT;
+  xcb_void_cookie_t cookie = xcb_change_window_attributes_checked
+    (xcb_dpy, root, XCB_CW_EVENT_MASK, &mask);
+  xcb_generic_error_t *error = xcb_request_check(xcb_dpy, cookie);
+  if(error)
     die("dwm: another window manager is already running\n");
-  XSetErrorHandler(xerror);
-  XSync(dpy, False);
 }
 
 void
@@ -2055,14 +2051,6 @@ xerror(Display *dpy, XErrorEvent *ee) {
 int
 xerrordummy(Display *dpy, XErrorEvent *ee) {
   return 0;
-}
-
-/* Startup Error handler to check if another window manager
- * is already running. */
-int
-xerrorstart(Display *dpy, XErrorEvent *ee) {
-  otherwm = True;
-  return -1;
 }
 
 void
