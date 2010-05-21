@@ -1460,27 +1460,72 @@ run(void) {
 void
 scan(void) {
   unsigned int i, num;
-  Window d1, d2, *wins = NULL;
-  XWindowAttributes wa;
+  xcb_window_t *wins = NULL;
 
-  if(XQueryTree(dpy, root, &d1, &d2, &wins, &num)) {
-    for(i = 0; i < num; i++) {
-      if(!XGetWindowAttributes(dpy, wins[i], &wa)
-	 || wa.override_redirect || XGetTransientForHint(dpy, wins[i], &d1))
-	continue;
-      if(wa.map_state == IsViewable || getstate(wins[i]) == IconicState)
-	manage(wins[i], &wa);
-    }
-    for(i = 0; i < num; i++) { /* now the transients */
-      if(!XGetWindowAttributes(dpy, wins[i], &wa))
-	continue;
-      if(XGetTransientForHint(dpy, wins[i], &d1)
-	 && (wa.map_state == IsViewable || getstate(wins[i]) == IconicState))
-	manage(wins[i], &wa);
-    }
-    if(wins)
-      XFree(wins);
+  xcb_query_tree_cookie_t cookie = xcb_query_tree_unchecked(xcb_dpy, root);
+  xcb_query_tree_reply_t *qtree = NULL;
+
+  if(!(qtree = xcb_query_tree_reply(xcb_dpy, cookie, NULL)))
+    return;
+  num = qtree->children_len;
+  wins = xcb_query_tree_children(qtree);
+  int *is_transient = calloc(num, sizeof(int));
+
+  // Send requests for attributes
+  xcb_get_window_attributes_cookie_t *cookie_wa =
+    malloc(num * sizeof(xcb_get_window_attributes_cookie_t));
+  xcb_get_property_cookie_t *cookie_tr =
+    malloc(num * sizeof(xcb_get_property_cookie_t));
+  xcb_get_property_cookie_t *cookie_h =
+    malloc(num * sizeof(xcb_get_property_cookie_t));
+  xcb_get_geometry_cookie_t *cookie_g =
+    malloc(num * sizeof(xcb_get_geometry_cookie_t));
+  xcb_get_window_attributes_reply_t **wa =
+    calloc(num, sizeof(xcb_get_window_attributes_reply_t*));
+  for(i=0; i<num; i++) {
+    cookie_wa[i] = xcb_get_window_attributes_unchecked(xcb_dpy, wins[i]);
+    cookie_tr[i] = xcb_get_wm_transient_for_unchecked(xcb_dpy, wins[i]);
+    cookie_h[i] = xcb_get_wm_hints_unchecked(xcb_dpy, wins[i]);
+    xcb_drawable_t d = { wins[i] };
+    cookie_g[i] = xcb_get_geometry_unchecked(xcb_dpy, d);
   }
+
+  // Go through children
+  xcb_wm_hints_t hints;
+  for(i=0; i<num; i++) {
+    // Get attributes
+    wa[i] = xcb_get_window_attributes_reply(xcb_dpy, cookie_wa[i], NULL);
+    if (!wa[i]) continue;
+    // Check for transience
+    xcb_window_t transient_for;
+    if(xcb_get_wm_transient_for_reply(xcb_dpy, cookie_tr[i], &transient_for, NULL))
+      is_transient[i] = 1;
+    // Manage window
+    xcb_get_wm_hints_reply(xcb_dpy, cookie_h[i], &hints, NULL);
+    if (wa[i]->map_state == XCB_MAP_STATE_VIEWABLE || (hints.initial_state == XCB_WM_STATE_ICONIC))
+      {
+	if (is_transient[i]) continue;
+	if (!(wa[i]->override_redirect)) manage(wins[i], wa[i], cookie_g[i]);
+	free(wa[i]);
+      }
+    else
+      { is_transient[i] = 0; }
+  }
+
+  free(cookie_wa);
+  free(cookie_tr);
+  free(cookie_h);
+
+  for(i=0; i<num; i++)
+    if (is_transient[i]) {
+      manage(wins[i], wa[i], cookie_g[i]);
+      free(wa[i]);
+    }
+
+  free(qtree);
+  free(wa);
+  free(cookie_g);
+  free(is_transient);
 }
 
 void
