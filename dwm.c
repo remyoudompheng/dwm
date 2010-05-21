@@ -88,7 +88,8 @@ typedef struct Client Client;
 struct Client {
   char name[256];
   float mina, maxa;
-  uint32_t x, y, w, h;
+  int16_t x, y;
+  uint16_t w, h;
   int basew, baseh, incw, inch, maxw, maxh, minw, minh;
   uint32_t bw, oldbw;
   unsigned int tags;
@@ -196,7 +197,8 @@ static void initfont(const char *fontstr);
 static Bool isprotodel(Client *c);
 static void keypress(xcb_generic_event_t *e);
 static void killclient(const Arg *arg);
-static void manage(xcb_window_t w, XWindowAttributes *wa);
+static void manage(xcb_window_t w, xcb_get_window_attributes_reply_t *wa,
+		   xcb_get_geometry_cookie_t cookie_g);
 static void mappingnotify(xcb_generic_event_t *e);
 static void maprequest(xcb_generic_event_t *e);
 static void monocle(Monitor *m);
@@ -1115,7 +1117,9 @@ killclient(const Arg *arg) {
 }
 
 void
-manage(xcb_window_t w, XWindowAttributes *wa) {
+manage(xcb_window_t w,
+       xcb_get_window_attributes_reply_t *wa,
+       xcb_get_geometry_cookie_t cookie_g) {
   static Client cz;
   Client *c, *t = NULL;
   Window trans = None;
@@ -1135,12 +1139,19 @@ manage(xcb_window_t w, XWindowAttributes *wa) {
     c->mon = selmon;
     applyrules(c);
   }
+
   /* geometry */
-  c->x = wa->x + c->mon->wx;
-  c->y = wa->y + c->mon->wy;
-  c->w = wa->width;
-  c->h = wa->height;
-  c->oldbw = wa->border_width;
+  xcb_get_geometry_reply_t *geo = NULL;
+  geo = xcb_get_geometry_reply(xcb_dpy, cookie_g, NULL);
+  if (!geo) return;
+
+  c->x = geo->x + c->mon->wx;
+  c->y = geo->y + c->mon->wy;
+  c->w = geo->width;
+  c->h = geo->height;
+  c->oldbw = geo->border_width;
+  free(geo);
+
   if(c->w == c->mon->mw && c->h == c->mon->mh) {
     c->x = c->mon->mx;
     c->y = c->mon->my;
@@ -1195,15 +1206,22 @@ mappingnotify(xcb_generic_event_t *e) {
 
 void
 maprequest(xcb_generic_event_t *e) {
-  static XWindowAttributes wa;
+  static xcb_get_window_attributes_reply_t *wa = NULL;
   xcb_map_request_event_t *ev = (xcb_map_request_event_t *)e;
 
-  if(!XGetWindowAttributes(dpy, ev->window, &wa))
+  xcb_get_window_attributes_cookie_t cookie;
+  cookie = xcb_get_window_attributes_unchecked(xcb_dpy, ev->window);
+  xcb_get_geometry_cookie_t cookie_g;
+  xcb_drawable_t d = { ev->window };
+  cookie_g = xcb_get_geometry_unchecked(xcb_dpy, d);
+
+  if(!(wa = xcb_get_window_attributes_reply(xcb_dpy, cookie, NULL)))
     return;
-  if(wa.override_redirect)
+  if(wa->override_redirect)
     return;
   if(!wintoclient(ev->window))
-    manage(ev->window, &wa);
+    manage(ev->window, wa, cookie_g);
+  free(wa);
 }
 
 void
