@@ -196,7 +196,7 @@ static void initfont(const char *fontstr);
 static Bool isprotodel(Client *c);
 static void keypress(xcb_generic_event_t *e);
 static void killclient(const Arg *arg);
-static void manage(Window w, XWindowAttributes *wa);
+static void manage(xcb_window_t w, XWindowAttributes *wa);
 static void mappingnotify(xcb_generic_event_t *e);
 static void maprequest(xcb_generic_event_t *e);
 static void monocle(Monitor *m);
@@ -285,6 +285,12 @@ static xcb_window_t root;
 
 /* compile-time check if all tags fit into an unsigned int bit array. */
 struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
+
+/* convenience wrapper */
+void xcb_raise_window(xcb_connection_t *conn, xcb_window_t w) {
+  uint32_t mode[] = { XCB_STACK_MODE_ABOVE };
+  xcb_configure_window(conn, w, XCB_CONFIG_WINDOW_STACK_MODE, mode);
+}
 
 /* function implementations */
 void
@@ -1109,11 +1115,10 @@ killclient(const Arg *arg) {
 }
 
 void
-manage(Window w, XWindowAttributes *wa) {
+manage(xcb_window_t w, XWindowAttributes *wa) {
   static Client cz;
   Client *c, *t = NULL;
   Window trans = None;
-  XWindowChanges wc;
 
   if(!(c = malloc(sizeof(Client))))
     die("fatal: could not malloc() %u bytes\n", sizeof(Client));
@@ -1152,21 +1157,29 @@ manage(Window w, XWindowAttributes *wa) {
 		      && (c->x + (c->w / 2) < c->mon->wx + c->mon->ww)) ? bh : c->mon->my);
     c->bw = borderpx;
   }
-  wc.border_width = c->bw;
-  XConfigureWindow(dpy, w, CWBorderWidth, &wc);
+  uint32_t bw = c->bw;
+  xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH, &bw);
   XSetWindowBorder(dpy, w, dc.norm[ColBorder]);
   configure(c); /* propagates border_width, if size doesn't change */
   updatesizehints(c);
-  XSelectInput(dpy, w, EnterWindowMask|FocusChangeMask|PropertyChangeMask|StructureNotifyMask);
+  uint32_t ev_mask = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE |
+    XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+  xcb_change_window_attributes(xcb_dpy, w, XCB_CW_EVENT_MASK, &ev_mask);
   grabbuttons(c, False);
   if(!c->isfloating)
     c->isfloating = trans != None || c->isfixed;
   if(c->isfloating)
-    XRaiseWindow(dpy, c->win);
+    xcb_raise_window(xcb_dpy, c->win);
   attach(c);
   attachstack(c);
-  XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h); /* some windows require this */
-  XMapWindow(dpy, c->win);
+
+  uint32_t geom[4];
+  geom[0] = c->x + 2*sw;  /* some windows require this */
+  geom[1] = c->y;
+  geom[2] = c->w;
+  geom[3] = c->h;
+  xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
+  xcb_map_window(xcb_dpy, c->win);
   setclientstate(c, NormalState);
   arrange(c->mon);
 }
@@ -1573,7 +1586,6 @@ setup(void) {
     XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW |
     XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE;
   xcb_change_window_attributes(xcb_dpy, root, XCB_CW_EVENT_MASK, &wa);
-  XSelectInput(dpy, root, wa);
   grabkeys();
   xcb_flush(xcb_dpy);
 }
@@ -1775,6 +1787,7 @@ updatebars(void) {
     uint32_t value_list = cursor[CurNormal];
     xcb_change_window_attributes(xcb_dpy, m->barwin, XCB_CW_CURSOR, &value_list);
     xcb_map_window(xcb_dpy, m->barwin);
+    xcb_raise_window(xcb_dpy, m->barwin);
   }
 
   xcb_flush(xcb_dpy);
