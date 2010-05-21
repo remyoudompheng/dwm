@@ -90,7 +90,7 @@ struct Client {
   float mina, maxa;
   uint32_t x, y, w, h;
   int basew, baseh, incw, inch, maxw, maxh, minw, minh;
-  int bw, oldbw;
+  uint32_t bw, oldbw;
   unsigned int tags;
   Bool isfixed, isfloating, isurgent;
   Client *next;
@@ -1597,15 +1597,18 @@ void
 showhide(Client *c) {
   if(!c)
     return;
+  uint32_t geom[2];
   if(ISVISIBLE(c)) { /* show clients top down */
-    XMoveWindow(dpy, c->win, c->x, c->y);
+    geom[0] = c->x; geom[1] = c->y;
+    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
     if(!c->mon->lt[c->mon->sellt]->arrange || c->isfloating)
       resize(c, c->x, c->y, c->w, c->h, False);
     showhide(c->snext);
   }
   else { /* hide clients bottom up */
     showhide(c->snext);
-    XMoveWindow(dpy, c->win, c->x + 2 * sw, c->y);
+    geom[0] = c->x + 2 * sw; geom[1] = c->y;
+    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
   }
 }
 
