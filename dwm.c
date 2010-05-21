@@ -1742,21 +1742,18 @@ unfocus(Client *c) {
 void
 unmanage(Client *c, Bool destroyed) {
   Monitor *m = c->mon;
-  XWindowChanges wc;
 
   /* The server grab construct avoids race conditions. */
   detach(c);
   detachstack(c);
   if(!destroyed) {
-    wc.border_width = c->oldbw;
-    XGrabServer(dpy);
-    XSetErrorHandler(xerrordummy);
-    XConfigureWindow(dpy, c->win, CWBorderWidth, &wc); /* restore border */
-    XUngrabButton(dpy, AnyButton, AnyModifier, c->win);
+    xcb_grab_server(xcb_dpy);
+    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH,
+			 &(c->oldbw)); /* restore border */
+    xcb_ungrab_button(xcb_dpy, AnyButton, c->win, AnyModifier);
     setclientstate(c, WithdrawnState);
-    XSync(dpy, False);
-    XSetErrorHandler(xerror);
-    XUngrabServer(dpy);
+    xcb_flush(xcb_dpy);
+    xcb_ungrab_server(xcb_dpy);
   }
   free(c);
   focus(NULL);
