@@ -45,8 +45,8 @@
 #include <xcb/xcb_keysyms.h>
 
 /* macros */
-#define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
-#define CLEANMASK(mask)         (mask & ~(XCB_MOD_MASK_LOCK))
+#define BUTTONMASK              (XCB_EVENT_MASK_BUTTON_PRESS|XCB_EVENT_MASK_BUTTON_RELEASE)
+#define CLEANMASK(mask)         (mask & ~(XCB_MOD_MASK_LOCK|numlockmask))
 #define INRECT(X,Y,RX,RY,RW,RH) ((X) >= (RX) && (X) < (RX) + (RW) && (Y) >= (RY) && (Y) < (RY) + (RH))
 #define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
@@ -498,7 +498,7 @@ cleanup(void) {
     XFreeFontSet(dpy, dc.font.set);
   else
     XFreeFont(dpy, dc.font.xfont);
-  XUngrabKey(dpy, AnyKey, AnyModifier, root);
+  xcb_ungrab_key(xcb_dpy, AnyKey, root, AnyModifier);
   xcb_key_symbols_free(keysyms);
   XFreePixmap(dpy, dc.drawable);
   XFreeGC(dpy, dc.gc);
@@ -976,20 +976,23 @@ grabbuttons(Client *c, Bool focused) {
   updatenumlockmask();
   {
     unsigned int i, j;
-    unsigned int modifiers[] = { 0, LockMask, numlockmask, numlockmask|LockMask };
-    XUngrabButton(dpy, AnyButton, AnyModifier, c->win);
+    unsigned int modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
+				 XCB_MOD_MASK_LOCK|numlockmask };
+    xcb_ungrab_button(xcb_dpy, AnyButton, c->win, AnyModifier);
     if(focused) {
       for(i = 0; i < LENGTH(buttons); i++)
 	if(buttons[i].click == ClkClientWin)
 	  for(j = 0; j < LENGTH(modifiers); j++)
-	    XGrabButton(dpy, buttons[i].button,
-			buttons[i].mask | modifiers[j],
-			c->win, False, BUTTONMASK,
-			GrabModeAsync, GrabModeSync, None, None);
+	    xcb_grab_button(xcb_dpy, 0, c->win,
+			    BUTTONMASK, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+			    XCB_WINDOW_NONE, XCB_CURSOR_NONE,
+			    buttons[i].button, buttons[i].mask | modifiers[j]);
     }
     else
-      XGrabButton(dpy, AnyButton, AnyModifier, c->win, False,
-		  BUTTONMASK, GrabModeAsync, GrabModeSync, None, None);
+      xcb_grab_button(xcb_dpy, 0, c->win,
+		      BUTTONMASK, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+		      XCB_WINDOW_NONE, XCB_CURSOR_NONE,
+		      AnyButton, XCB_BUTTON_MASK_ANY);
   }
 }
 
