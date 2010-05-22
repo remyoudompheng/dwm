@@ -41,6 +41,7 @@
 #endif /* XINERAMA */
 
 #include <xcb/xcb.h>
+#include <xcb/xcb_event.h>
 #include <xcb/xcb_icccm.h>
 #include <xcb/xcb_keysyms.h>
 
@@ -166,16 +167,16 @@ static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
-static void buttonpress(xcb_generic_event_t *e);
+static int buttonpress(void *dummy, xcb_connection_t *dpy, xcb_button_press_event_t *e);
 static void checkotherwm(void);
 static void cleanup(void);
 static void cleanupmon(Monitor *mon);
 static void clearurgent(Client *c);
 static void configure(Client *c);
-static void configurenotify(xcb_generic_event_t *e);
-static void configurerequest(xcb_generic_event_t *e);
+static int configurenotify(void *dummy, xcb_connection_t *dpy, xcb_configure_notify_event_t *e);
+static int configurerequest(void *dummy, xcb_connection_t *dpy, xcb_configure_request_event_t *e);
 static Monitor *createmon(void);
-static void destroynotify(xcb_generic_event_t *e);
+static int destroynotify(void *dummy, xcb_connection_t *dpy, xcb_destroy_notify_event_t *e);
 static void detach(Client *c);
 static void detachstack(Client *c);
 static void die(const char *errstr, ...);
@@ -184,10 +185,10 @@ static void drawbar(Monitor *m);
 static void drawbars(void);
 static void drawsquare(int filled, int empty, int invert, unsigned long col[ColLast]);
 static void drawtext(const char *text, unsigned long col[ColLast], int invert);
-static void enternotify(xcb_generic_event_t *e);
-static void expose(xcb_generic_event_t *e);
+static int enternotify(void *dummy, xcb_connection_t *dpy, xcb_enter_notify_event_t *e);
+static int expose(void *dummy, xcb_connection_t *dpy, xcb_expose_event_t *e);
 static void focus(Client *c);
-static void focusin(xcb_generic_event_t *e);
+static int focusin(void *dummy, xcb_connection_t *dpy, xcb_focus_in_event_t *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static unsigned long getcolor(const char *colstr);
@@ -196,20 +197,19 @@ static int getrootptr(int *x, int *y);
 static int gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size);
 static void grabbuttons(Client *c, int focused);
 static void grabkeys(void);
-static void handler(xcb_generic_event_t *ev);
 static void initfont(const char *fontstr);
 static int isprotodel(Client *c);
-static void keypress(xcb_generic_event_t *e);
+static int keypress(void *dummy, xcb_connection_t *dpy, xcb_key_press_event_t *e);
 static void killclient(const Arg *arg);
 static void manage(xcb_window_t w, xcb_get_window_attributes_reply_t *wa,
 		   xcb_get_geometry_cookie_t cookie_g);
-static void mappingnotify(xcb_generic_event_t *e);
-static void maprequest(xcb_generic_event_t *e);
+static int mappingnotify(void *dummy, xcb_connection_t *dpy, xcb_mapping_notify_event_t *e);
+static int maprequest(void *dummy, xcb_connection_t *dpy, xcb_map_request_event_t *e);
 static void monocle(Monitor *m);
 static void movemouse(const Arg *arg);
 static Client *nexttiled(Client *c);
 static Monitor *ptrtomon(int x, int y);
-static void propertynotify(xcb_generic_event_t *e);
+static int propertynotify(void *dummy, xcb_connection_t *dpy, xcb_property_notify_event_t *e);
 static void quit(const Arg *arg);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizemouse(const Arg *arg);
@@ -234,7 +234,7 @@ static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unfocus(Client *c);
 static void unmanage(Client *c, int destroyed);
-static void unmapnotify(xcb_generic_event_t *e);
+static int unmapnotify(void *dummy, xcb_connection_t *dpy, xcb_unmap_notify_event_t *e);
 static int updategeom(void);
 static void updatebarpos(Monitor *m);
 static void updatebars(void);
@@ -262,6 +262,7 @@ static xcb_screen_t *screen;  /* X display screen structure */
 static int bh, blw = 0;      /* bar geometry */
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 static unsigned int numlockmask = 0;
+static xcb_event_handlers_t evenths;
 static xcb_key_symbols_t *keysyms = 0;
 static xcb_atom_t wmatom[WMLast], netatom[NetLast];
 static int running = true;
@@ -421,13 +422,12 @@ attachstack(Client *c) {
   c->mon->stack = c;
 }
 
-void
-buttonpress(xcb_generic_event_t *e) {
+int
+buttonpress(void *dummy, xcb_connection_t *dpy, xcb_button_press_event_t *ev) {
   unsigned int i, x, click;
   Arg arg = {0};
   Client *c;
   Monitor *m;
-  xcb_button_press_event_t *ev = (xcb_button_press_event_t *)e;
 
   click = ClkRootWin;
   /* focus monitor if necessary */
@@ -460,6 +460,7 @@ buttonpress(xcb_generic_event_t *e) {
     if(click == buttons[i].click && buttons[i].func && buttons[i].button == ev->detail
        && CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state))
       buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
+  return 1;
 }
 
 void
@@ -551,11 +552,9 @@ configure(Client *c) {
   xcb_send_event(xcb_dpy, 0, c->win, XCB_EVENT_MASK_STRUCTURE_NOTIFY, (const char*)&ce);
 }
 
-void
-configurenotify(xcb_generic_event_t *e) {
+int
+configurenotify(void *dummy, xcb_connection_t *Xdpy, xcb_configure_notify_event_t *ev) {
   Monitor *m;
-  xcb_configure_notify_event_t *ev = (xcb_configure_notify_event_t *)e;
-  uint32_t geometry[4];
 
   if(ev->window == root) {
     sw = ev->width;
@@ -575,13 +574,14 @@ configurenotify(xcb_generic_event_t *e) {
       arrange(NULL);
     }
   }
+
+  return 1;
 }
 
-void
-configurerequest(xcb_generic_event_t *e) {
+int
+configurerequest(void *dummy, xcb_connection_t *dpy, xcb_configure_request_event_t *ev) {
   Client *c;
   Monitor *m;
-  xcb_configure_request_event_t *ev = (xcb_configure_request_event_t *)e;
 
   if((c = wintoclient(ev->window))) {
     if(ev->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH)
@@ -618,6 +618,7 @@ configurerequest(xcb_generic_event_t *e) {
     xcb_configure_window(xcb_dpy, ev->window, ev->value_mask, wc);
   }
   xcb_flush(xcb_dpy);
+  return 1;
 }
 
 Monitor *
@@ -636,13 +637,12 @@ createmon(void) {
   return m;
 }
 
-void
-destroynotify(xcb_generic_event_t *e) {
+int
+destroynotify(void *dummy, xcb_connection_t *dpy, xcb_destroy_notify_event_t *ev) {
   Client *c;
-  xcb_destroy_notify_event_t *ev = (xcb_destroy_notify_event_t *)e;
-
   if((c = wintoclient(ev->window)))
     unmanage(c, true);
+  return 1;
 }
 
 void
@@ -800,15 +800,14 @@ drawtext(const char *text, unsigned long col[ColLast], int invert) {
     XDrawString(dpy, dc.drawable, dc.gc, x, y, buf, len);
 }
 
-void
-enternotify(xcb_generic_event_t *e) {
+int
+enternotify(void *dummy, xcb_connection_t *dpy, xcb_enter_notify_event_t *ev) {
   Client *c;
   Monitor *m;
-  xcb_enter_notify_event_t *ev = (xcb_enter_notify_event_t *)e;
 
   if((ev->mode != XCB_NOTIFY_MODE_NORMAL
       || ev->detail == XCB_NOTIFY_DETAIL_INFERIOR) && ev->event != root)
-    return;
+    return 0;
   if((m = wintomon(ev->event)) && m != selmon) {
     unfocus(selmon->sel);
     selmon = m;
@@ -817,15 +816,16 @@ enternotify(xcb_generic_event_t *e) {
     focus(c);
   else
     focus(NULL);
+  return 1;
 }
 
-void
-expose(xcb_generic_event_t *e) {
+int
+expose(void *dummy, xcb_connection_t *dpy, xcb_expose_event_t *ev) {
   Monitor *m;
-  xcb_expose_event_t *ev = (xcb_expose_event_t *)e;
 
   if(ev->count == 0 && (m = wintomon(ev->window)))
     drawbar(m);
+  return 1;
 }
 
 void
@@ -853,13 +853,13 @@ focus(Client *c) {
   drawbars();
 }
 
-void
-focusin(xcb_generic_event_t *e) { /* there are some broken focus acquiring clients */
-  xcb_focus_in_event_t *ev = (xcb_focus_in_event_t *)e;
-
+int
+focusin(void *dummy, xcb_connection_t *dpy, xcb_focus_in_event_t *ev) {
+  /* there are some broken focus acquiring clients */
   if(selmon->sel && ev->event != selmon->sel->win)
     xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
 			selmon->sel->win, XCB_TIME_CURRENT_TIME);
+  return 1;
 }
 
 void
@@ -1013,37 +1013,6 @@ grabkeys(void) {
 }
 
 void
-handler(xcb_generic_event_t *ev) {
-  switch(ev->response_type) {
-  case XCB_BUTTON_PRESS:
-    buttonpress(ev); break;
-  case XCB_CONFIGURE_REQUEST:
-    configurerequest(ev); break;
-  case XCB_CONFIGURE_NOTIFY:
-    configurenotify(ev); break;
-  case XCB_DESTROY_NOTIFY:
-    destroynotify(ev); break;
-  case XCB_ENTER_NOTIFY:
-    enternotify(ev); break;
-  case XCB_EXPOSE:
-    expose(ev); break;
-  case XCB_FOCUS_IN:
-    focusin(ev); break;
-  case XCB_KEY_PRESS:
-    keypress(ev); break;
-  case XCB_MAPPING_NOTIFY:
-    mappingnotify(ev); break;
-  case XCB_MAP_REQUEST:
-    maprequest(ev); break;
-  case XCB_PROPERTY_NOTIFY:
-    propertynotify(ev); break;
-  case XCB_UNMAP_NOTIFY:
-    unmapnotify(ev); break;
-  default: break;
-  }
-}
-
-void
 initfont(const char *fontstr) {
   char *def, **missing;
   int i, n;
@@ -1107,11 +1076,10 @@ isuniquegeom(XineramaScreenInfo *unique, size_t len, XineramaScreenInfo *info) {
 }
 #endif /* XINERAMA */
 
-void
-keypress(xcb_generic_event_t *e) {
+int
+keypress(void *dummy, xcb_connection_t *dpy, xcb_key_press_event_t *ev) {
   unsigned int i;
   xcb_keysym_t keysym;
-  xcb_key_press_event_t *ev = (xcb_key_press_event_t *)e;
 
   keysym = xcb_key_symbols_get_keysym(keysyms, ev->detail, 0);
   for(i = 0; i < LENGTH(keys); i++)
@@ -1119,6 +1087,7 @@ keypress(xcb_generic_event_t *e) {
        && CLEANMASK(keys[i].mod) == CLEANMASK(ev->state)
        && keys[i].func)
       keys[i].func(&(keys[i].arg));
+  return 1;
 }
 
 void
@@ -1223,19 +1192,17 @@ manage(xcb_window_t w,
   arrange(c->mon);
 }
 
-void
-mappingnotify(xcb_generic_event_t *e) {
-  xcb_mapping_notify_event_t *ev = (xcb_mapping_notify_event_t *)e;
-
+int
+mappingnotify(void *dummy, xcb_connection_t *dpy, xcb_mapping_notify_event_t *ev) {
   xcb_refresh_keyboard_mapping(NULL, ev);
   if(ev->request == XCB_MAPPING_KEYBOARD)
     grabkeys();
+  return 1;
 }
 
-void
-maprequest(xcb_generic_event_t *e) {
+int
+maprequest(void *dummy, xcb_connection_t *dpy, xcb_map_request_event_t *ev) {
   static xcb_get_window_attributes_reply_t *wa = NULL;
-  xcb_map_request_event_t *ev = (xcb_map_request_event_t *)e;
 
   xcb_get_window_attributes_cookie_t cookie;
   cookie = xcb_get_window_attributes_unchecked(xcb_dpy, ev->window);
@@ -1244,12 +1211,13 @@ maprequest(xcb_generic_event_t *e) {
   cookie_g = xcb_get_geometry_unchecked(xcb_dpy, d);
 
   if(!(wa = xcb_get_window_attributes_reply(xcb_dpy, cookie, NULL)))
-    return;
+    return 0;
   if(wa->override_redirect)
-    return;
+    return 1;
   if(!wintoclient(ev->window))
     manage(ev->window, wa, cookie_g);
   free(wa);
+  return 1;
 }
 
 void
@@ -1292,7 +1260,7 @@ movemouse(const Arg *arg) {
     case XCB_CONFIGURE_REQUEST:
     case XCB_EXPOSE:
     case XCB_MAP_REQUEST:
-      handler(ev);
+      xcb_event_handle(&evenths, ev);
       break;
     case XCB_MOTION_NOTIFY:
       e = (xcb_motion_notify_event_t *)ev;
@@ -1341,16 +1309,15 @@ ptrtomon(int x, int y) {
   return selmon;
 }
 
-void
-propertynotify(xcb_generic_event_t *e) {
+int
+propertynotify(void *dummy, xcb_connection_t *Xdpy, xcb_property_notify_event_t *ev) {
   Client *c;
   Window trans;
-  xcb_property_notify_event_t *ev = (xcb_property_notify_event_t *)e;
 
   if((ev->window == root) && (ev->atom == XCB_ATOM_WM_NAME))
     updatestatus();
   else if(ev->state == PropertyDelete)
-    return; /* ignore */
+    return 0; /* ignore */
   else if((c = wintoclient(ev->window))) {
     switch (ev->atom) {
     default: break;
@@ -1373,6 +1340,8 @@ propertynotify(xcb_generic_event_t *e) {
 	drawbar(c->mon);
     }
   }
+
+  return 1;
 }
 
 void
@@ -1417,7 +1386,7 @@ resizemouse(const Arg *arg) {
     case XCB_CONFIGURE_REQUEST:
     case XCB_EXPOSE:
     case XCB_MAP_REQUEST:
-      handler(ev);
+      xcb_event_handle(&evenths, ev);
       break;
     case XCB_MOTION_NOTIFY:
       e = (xcb_motion_notify_event_t *)ev;
@@ -1477,7 +1446,7 @@ run(void) {
   /* main event loop */
   xcb_flush(xcb_dpy);
   while(running && (ev = xcb_wait_for_event(xcb_dpy)))
-    handler(ev); /* call handler */
+    xcb_event_handle(&evenths, ev); /* call handler */
 }
 
 void
@@ -1618,6 +1587,21 @@ setup(void) {
   updategeom();
   /* get keysyms */
   keysyms = xcb_key_symbols_alloc(xcb_dpy);
+  /* init handlers */
+  xcb_event_handlers_init(xcb_dpy, &evenths);
+  xcb_event_set_button_press_handler(&evenths, buttonpress, NULL);
+  xcb_event_set_configure_request_handler(&evenths, configurerequest, NULL);
+  xcb_event_set_configure_notify_handler(&evenths, configurenotify, NULL);
+  xcb_event_set_destroy_notify_handler(&evenths, destroynotify, NULL);
+  xcb_event_set_enter_notify_handler(&evenths, enternotify, NULL);
+  xcb_event_set_expose_handler(&evenths, expose, NULL);
+  xcb_event_set_focus_in_handler(&evenths, focusin, NULL);
+  xcb_event_set_key_press_handler(&evenths, keypress, NULL);
+  xcb_event_set_mapping_notify_handler(&evenths, mappingnotify, NULL);
+  xcb_event_set_map_request_handler(&evenths, maprequest, NULL);
+  xcb_event_set_property_notify_handler(&evenths, propertynotify, NULL);
+  xcb_event_set_unmap_notify_handler(&evenths, unmapnotify, NULL);
+
   /* init atoms */
   xcb_intern_atom_cookie_t atom_c[5];
   atom_c[0] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
@@ -1666,8 +1650,9 @@ setup(void) {
   updatebars();
   updatestatus();
   /* EWMH support per view */
-  XChangeProperty(dpy, root, netatom[NetSupported], XA_ATOM, 32,
-		  PropModeReplace, (unsigned char *) netatom, NetLast);
+  xcb_change_property(xcb_dpy, XCB_PROP_MODE_REPLACE, root,
+		      netatom[NetSupported], XCB_ATOM_ATOM, 32,
+		      NetLast, netatom);
   /* select for events */
   uint32_t wa;
   wa = cursor[CurNormal];
@@ -1851,13 +1836,11 @@ unmanage(Client *c, int destroyed) {
   arrange(m);
 }
 
-void
-unmapnotify(xcb_generic_event_t *e) {
-  Client *c;
-  xcb_unmap_notify_event_t *ev = (xcb_unmap_notify_event_t *)e;
-
-  if((c = wintoclient(ev->window)))
-    unmanage(c, false);
+int
+unmapnotify(void *dummy, xcb_connection_t *dpy, xcb_unmap_notify_event_t *ev) {
+  Client *c = wintoclient(ev->window);
+  if(c) unmanage(c, false);
+  return 1;
 }
 
 void
