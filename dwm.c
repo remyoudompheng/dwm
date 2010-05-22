@@ -565,10 +565,7 @@ configurenotify(void *dummy, xcb_connection_t *Xdpy, xcb_configure_notify_event_
       dc.drawable = XCreatePixmap(dpy, root, sw, bh, screen->root_depth);
       updatebars();
       for(m = mons; m; m = m->next) {
-	geometry[0] = m->wx;
-	geometry[1] = m->by;
-	geometry[2] = m->ww;
-	geometry[3] = bh;
+	uint32_t geometry[] = {m->wx, m->by, m->ww, bh};
 	xcb_configure_window(xcb_dpy, m->barwin, XCB_CONFIG_MOVERESIZE, geometry);
       }
       arrange(NULL);
