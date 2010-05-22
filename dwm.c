@@ -582,44 +582,46 @@ configurerequest(xcb_generic_event_t *e) {
   Client *c;
   Monitor *m;
   xcb_configure_request_event_t *ev = (xcb_configure_request_event_t *)e;
-  XWindowChanges wc;
 
   if((c = wintoclient(ev->window))) {
-    if(ev->value_mask & CWBorderWidth)
+    if(ev->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH)
       c->bw = ev->border_width;
     else if(c->isfloating || !selmon->lt[selmon->sellt]->arrange) {
       m = c->mon;
-      if(ev->value_mask & CWX)
+      if(ev->value_mask & XCB_CONFIG_WINDOW_X)
 	c->x = m->mx + ev->x;
-      if(ev->value_mask & CWY)
+      if(ev->value_mask & XCB_CONFIG_WINDOW_Y)
 	c->y = m->my + ev->y;
-      if(ev->value_mask & CWWidth)
+      if(ev->value_mask & XCB_CONFIG_WINDOW_WIDTH)
 	c->w = ev->width;
-      if(ev->value_mask & CWHeight)
+      if(ev->value_mask & XCB_CONFIG_WINDOW_HEIGHT)
 	c->h = ev->height;
       if((c->x + c->w) > m->mx + m->mw && c->isfloating)
 	c->x = m->mx + (m->mw / 2 - c->w / 2); /* center in x direction */
       if((c->y + c->h) > m->my + m->mh && c->isfloating)
 	c->y = m->my + (m->mh / 2 - c->h / 2); /* center in y direction */
-      if((ev->value_mask & (CWX|CWY)) && !(ev->value_mask & (CWWidth|CWHeight)))
+      if((ev->value_mask & (XCB_CONFIG_WINDOW_X|XCB_CONFIG_WINDOW_Y))
+	 && !(ev->value_mask & (XCB_CONFIG_WINDOW_WIDTH|XCB_CONFIG_WINDOW_HEIGHT)))
 	configure(c);
-      if(ISVISIBLE(c))
-	XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
+      if(ISVISIBLE(c)) {
+	uint32_t geom[4];
+	geom[0] = c->x;
+	geom[1] = c->y;
+	geom[2] = c->w;
+	geom[3] = c->h;
+	xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
+      }
     }
     else
       configure(c);
   }
   else {
-    wc.x = ev->x;
-    wc.y = ev->y;
-    wc.width = ev->width;
-    wc.height = ev->height;
-    wc.border_width = ev->border_width;
-    wc.sibling = ev->sibling;
-    wc.stack_mode = ev->stack_mode;
-    XConfigureWindow(dpy, ev->window, ev->value_mask, &wc);
+    uint32_t wc[] =
+      { ev->x, ev->y, ev->width, ev->height,
+	ev->border_width, ev->sibling, ev->stack_mode };
+    xcb_configure_window(xcb_dpy, ev->window, ev->value_mask, wc);
   }
-  XSync(dpy, false);
+  xcb_flush(xcb_dpy);
 }
 
 Monitor *
@@ -1458,24 +1460,25 @@ resizemouse(const Arg *arg) {
 void
 restack(Monitor *m) {
   Client *c;
-  XEvent ev;
-  XWindowChanges wc;
 
   drawbar(m);
   if(!m->sel)
     return;
   if(m->sel->isfloating || !m->lt[m->sellt]->arrange)
-    XRaiseWindow(dpy, m->sel->win);
+    xcb_raise_window(dpy, m->sel->win);
   if(m->lt[m->sellt]->arrange) {
-    wc.stack_mode = Below;
-    wc.sibling = m->barwin;
+    uint32_t wc[] = { m->barwin, XCB_STACK_MODE_BELOW };
     for(c = m->stack; c; c = c->snext)
       if(!c->isfloating && ISVISIBLE(c)) {
-	XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
-	wc.sibling = c->win;
+	xcb_configure_window(xcb_dpy, c->win,
+			     XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE,
+			     wc);
+	wc[0] = c->win;
       }
   }
   XSync(dpy, false);
+
+  XEvent ev;
   while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
 
