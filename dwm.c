@@ -1089,18 +1089,19 @@ keypress(void *dummy, xcb_connection_t *dpy, xcb_key_press_event_t *ev) {
 
 void
 killclient(const Arg *arg) {
-  XEvent ev;
 
   if(!selmon->sel)
     return;
   if(isprotodel(selmon->sel)) {
-    ev.type = ClientMessage;
-    ev.xclient.window = selmon->sel->win;
-    ev.xclient.message_type = wmatom[WMProtocols];
-    ev.xclient.format = 32;
-    ev.xclient.data.l[0] = wmatom[WMDelete];
-    ev.xclient.data.l[1] = CurrentTime;
-    XSendEvent(dpy, selmon->sel->win, false, NoEventMask, &ev);
+    xcb_client_message_event_t ev;
+    ev.response_type = XCB_CLIENT_MESSAGE;
+    ev.format = 32;
+    ev.type = wmatom[WMProtocols];
+    ev.window = selmon->sel->win;
+    ev.data.data32[0] = wmatom[WMDelete];
+    ev.data.data32[1] = XCB_CURRENT_TIME;
+    xcb_send_event(xcb_dpy, false, selmon->sel->win,
+		   XCB_EVENT_MASK_NO_EVENT, (const char *)&ev);
   }
   else {
     int i;
@@ -1122,14 +1123,18 @@ manage(xcb_window_t w,
        xcb_get_geometry_cookie_t cookie_g) {
   static Client cz;
   Client *c, *t = NULL;
-  Window trans = None;
+  xcb_window_t trans = XCB_WINDOW_NONE;
 
   if(!(c = malloc(sizeof(Client))))
     die("fatal: could not malloc() %u bytes\n", sizeof(Client));
   *c = cz;
   c->win = w;
   updatetitle(c);
-  if(XGetTransientForHint(dpy, w, &trans))
+
+  /* transience */
+  xcb_get_property_cookie_t cookie =
+    xcb_get_wm_transient_for_unchecked(xcb_dpy, w);
+  if(xcb_get_wm_transient_for_reply(xcb_dpy, cookie, &trans, NULL))
     t = wintoclient(trans);
   if(t) {
     c->mon = t->mon;
@@ -1178,7 +1183,7 @@ manage(xcb_window_t w,
   xcb_change_window_attributes(xcb_dpy, w, XCB_CW_EVENT_MASK, &ev_mask);
   grabbuttons(c, false);
   if(!c->isfloating)
-    c->isfloating = trans != None || c->isfixed;
+    c->isfloating = (trans != XCB_WINDOW_NONE) || c->isfixed;
   if(c->isfloating)
     xcb_raise_window(xcb_dpy, c->win);
   attach(c);
@@ -1324,7 +1329,8 @@ ptrtomon(int x, int y) {
 int
 propertynotify(void *dummy, xcb_connection_t *Xdpy, xcb_property_notify_event_t *ev) {
   Client *c;
-  Window trans;
+  xcb_window_t trans;
+  xcb_get_property_cookie_t cookie;
 
   if((ev->window == root) && (ev->atom == XCB_ATOM_WM_NAME))
     updatestatus();
@@ -1334,7 +1340,8 @@ propertynotify(void *dummy, xcb_connection_t *Xdpy, xcb_property_notify_event_t 
     switch (ev->atom) {
     default: break;
     case XCB_ATOM_WM_TRANSIENT_FOR:
-      XGetTransientForHint(dpy, c->win, &trans);
+      cookie = xcb_get_wm_transient_for_unchecked(xcb_dpy, c->win);
+      xcb_get_wm_transient_for_reply(xcb_dpy, cookie, &trans, NULL);
       if(!c->isfloating && (c->isfloating = (wintoclient(trans) != NULL)))
 	arrange(c->mon);
       break;
