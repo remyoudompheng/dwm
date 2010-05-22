@@ -34,7 +34,7 @@
 #include <X11/keysym.h>
 #include <X11/Xlib.h>
 #ifdef XINERAMA
-#include <X11/extensions/Xinerama.h>
+#include <xcb/xinerama.h>
 #endif /* XINERAMA */
 
 #include <xcb/xcb.h>
@@ -1061,7 +1061,8 @@ isprotodel(Client *c) {
 
 #ifdef XINERAMA
 static int
-isuniquegeom(XineramaScreenInfo *unique, size_t len, XineramaScreenInfo *info) {
+isuniquegeom(xcb_xinerama_screen_info_t *unique, size_t len,
+	     xcb_xinerama_screen_info_t *info) {
   unsigned int i;
 
   for(i = 0; i < len; i++)
@@ -1888,22 +1889,35 @@ updategeom(void) {
   int dirty = false;
 
 #ifdef XINERAMA
-  if(XineramaIsActive(dpy)) {
+  xcb_xinerama_is_active_cookie_t cookie;
+  cookie = xcb_xinerama_is_active_unchecked(xcb_dpy);
+  xcb_xinerama_is_active_reply_t *xinerama_r;
+  xinerama_r = xcb_xinerama_is_active_reply(xcb_dpy, cookie, NULL);
+  if(xinerama_r && xinerama_r->state) {
     int i, j, n, nn;
     Client *c;
     Monitor *m;
-    XineramaScreenInfo *info = XineramaQueryScreens(dpy, &nn);
-    XineramaScreenInfo *unique = NULL;
+    xcb_xinerama_query_screens_cookie_t cookie;
+    xcb_xinerama_query_screens_reply_t *reply_qs;
+    xcb_xinerama_screen_info_t *info;
+    xcb_xinerama_screen_info_t *unique = NULL;
 
-    info = XineramaQueryScreens(dpy, &nn);
+    size_t sinfo_s = sizeof(xcb_xinerama_screen_info_t);
+
+    cookie = xcb_xinerama_query_screens_unchecked(xcb_dpy);
+    reply_qs = xcb_xinerama_query_screens_reply(xcb_dpy, cookie, NULL);
+    info = xcb_xinerama_query_screens_screen_info(reply_qs);
+    nn = xcb_xinerama_query_screens_screen_info_length(reply_qs);
+
     for(n = 0, m = mons; m; m = m->next, n++);
+
     /* only consider unique geometries as separate screens */
-    if(!(unique = (XineramaScreenInfo *)malloc(sizeof(XineramaScreenInfo) * nn)))
-      die("fatal: could not malloc() %u bytes\n", sizeof(XineramaScreenInfo) * nn);
+    if(!(unique = (xcb_xinerama_screen_info_t *)malloc(sinfo_s * nn)))
+      die("fatal: could not malloc() %u bytes\n", sinfo_s * nn);
     for(i = 0, j = 0; i < nn; i++)
       if(isuniquegeom(unique, j, &info[i]))
-	memcpy(&unique[j++], &info[i], sizeof(XineramaScreenInfo));
-    XFree(info);
+	memcpy(&unique[j++], &info[i], sinfo_s);
+    free(info);
     nn = j;
     if(n <= nn) {
       for(i = 0; i < (nn - n); i++) { /* new monitors available */
