@@ -193,6 +193,7 @@ static long getstate(Window w);
 static Bool gettextprop(Window w, Atom atom, char *text, unsigned int size);
 static void grabbuttons(Client *c, Bool focused);
 static void grabkeys(void);
+static void handler(xcb_generic_event_t *ev);
 static void initfont(const char *fontstr);
 static Bool isprotodel(Client *c);
 static void keypress(xcb_generic_event_t *e);
@@ -259,20 +260,6 @@ static int bh, blw = 0;      /* bar geometry */
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 static unsigned int numlockmask = 0;
 static xcb_key_symbols_t *keysyms = 0;
-static void (*handler[LASTEvent]) (xcb_generic_event_t *) = {
-  [XCB_BUTTON_PRESS] = buttonpress,
-  [XCB_CONFIGURE_REQUEST] = configurerequest,
-  [XCB_CONFIGURE_NOTIFY] = configurenotify,
-  [XCB_DESTROY_NOTIFY] = destroynotify,
-  [XCB_ENTER_NOTIFY] = enternotify,
-  [XCB_EXPOSE] = expose,
-  [XCB_FOCUS_IN] = focusin,
-  [XCB_KEY_PRESS] = keypress,
-  [XCB_MAPPING_NOTIFY] = mappingnotify,
-  [XCB_MAP_REQUEST] = maprequest,
-  [XCB_PROPERTY_NOTIFY] = propertynotify,
-  [XCB_UNMAP_NOTIFY] = unmapnotify
-};
 static xcb_atom_t wmatom[WMLast], netatom[NetLast];
 static Bool running = True;
 static xcb_cursor_t cursor[CurLast];
@@ -1016,6 +1003,37 @@ grabkeys(void) {
 }
 
 void
+handler(xcb_generic_event_t *ev) {
+  switch(ev->response_type) {
+  case XCB_BUTTON_PRESS:
+    buttonpress(ev); break;
+  case XCB_CONFIGURE_REQUEST:
+    configurerequest(ev); break;
+  case XCB_CONFIGURE_NOTIFY:
+    configurenotify(ev); break;
+  case XCB_DESTROY_NOTIFY:
+    destroynotify(ev); break;
+  case XCB_ENTER_NOTIFY:
+    enternotify(ev); break;
+  case XCB_EXPOSE:
+    expose(ev); break;
+  case XCB_FOCUS_IN:
+    focusin(ev); break;
+  case XCB_KEY_PRESS:
+    keypress(ev); break;
+  case XCB_MAPPING_NOTIFY:
+    mappingnotify(ev); break;
+  case XCB_MAP_REQUEST:
+    maprequest(ev); break;
+  case XCB_PROPERTY_NOTIFY:
+    propertynotify(ev); break;
+  case XCB_UNMAP_NOTIFY:
+    unmapnotify(ev); break;
+  default: break;
+  }
+}
+
+void
 initfont(const char *fontstr) {
   char *def, **missing;
   int i, n;
@@ -1267,7 +1285,7 @@ movemouse(const Arg *arg) {
     case ConfigureRequest:
     case Expose:
     case MapRequest:
-      handler[ev->response_type](ev);
+      handler(ev);
       break;
     case MotionNotify:
       e = (xcb_motion_notify_event_t *)ev;
@@ -1397,7 +1415,7 @@ resizemouse(const Arg *arg) {
     case ConfigureRequest:
     case Expose:
     case MapRequest:
-      handler[ev->response_type](ev);
+      handler(ev);
       break;
     case MotionNotify:
       e = (xcb_motion_notify_event_t *)ev;
@@ -1456,8 +1474,7 @@ run(void) {
   /* main event loop */
   xcb_flush(xcb_dpy);
   while(running && (ev = xcb_wait_for_event(xcb_dpy)))
-    if(handler[ev->response_type])
-      handler[ev->response_type](ev); /* call handler */
+      handler(ev); /* call handler */
 }
 
 void
