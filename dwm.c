@@ -31,7 +31,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
-#include <X11/keysymdef.h>
+#include <X11/keysym.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xproto.h>
@@ -1991,47 +1991,48 @@ updatenumlockmask(void) {
 
 void
 updatesizehints(Client *c) {
-  long msize;
-  XSizeHints size;
+  xcb_get_property_cookie_t cookie;
+  xcb_size_hints_t size;
+  cookie = xcb_get_wm_normal_hints_unchecked(xcb_dpy, c->win);
 
-  if(!XGetWMNormalHints(dpy, c->win, &size, &msize))
+  if(!xcb_get_wm_normal_hints_reply(xcb_dpy, cookie, &size, NULL))
     /* size is uninitialized, ensure that size.flags aren't used */
-    size.flags = PSize;
-  if(size.flags & PBaseSize) {
+    size.flags = XCB_SIZE_HINT_P_SIZE;
+  if(size.flags & XCB_SIZE_HINT_BASE_SIZE) {
     c->basew = size.base_width;
     c->baseh = size.base_height;
   }
-  else if(size.flags & PMinSize) {
+  else if(size.flags & XCB_SIZE_HINT_P_MIN_SIZE) {
     c->basew = size.min_width;
     c->baseh = size.min_height;
   }
   else
     c->basew = c->baseh = 0;
-  if(size.flags & PResizeInc) {
+  if(size.flags & XCB_SIZE_HINT_P_RESIZE_INC) {
     c->incw = size.width_inc;
     c->inch = size.height_inc;
   }
   else
     c->incw = c->inch = 0;
-  if(size.flags & PMaxSize) {
+  if(size.flags & XCB_SIZE_HINT_P_MAX_SIZE) {
     c->maxw = size.max_width;
     c->maxh = size.max_height;
   }
   else
     c->maxw = c->maxh = 0;
-  if(size.flags & PMinSize) {
+  if(size.flags & XCB_SIZE_HINT_P_MIN_SIZE) {
     c->minw = size.min_width;
     c->minh = size.min_height;
   }
-  else if(size.flags & PBaseSize) {
+  else if(size.flags & XCB_SIZE_HINT_BASE_SIZE) {
     c->minw = size.base_width;
     c->minh = size.base_height;
   }
   else
     c->minw = c->minh = 0;
-  if(size.flags & PAspect) {
-    c->mina = (float)size.min_aspect.y / size.min_aspect.x;
-    c->maxa = (float)size.max_aspect.x / size.max_aspect.y;
+  if(size.flags & XCB_SIZE_HINT_P_ASPECT) {
+    c->mina = (float)size.min_aspect_num / size.min_aspect_den;
+    c->maxa = (float)size.max_aspect_num / size.max_aspect_den;
   }
   else
     c->maxa = c->mina = 0.0;
@@ -2056,16 +2057,18 @@ updatestatus(void) {
 
 void
 updatewmhints(Client *c) {
-  XWMHints *wmh;
+  xcb_get_property_cookie_t cookie;
+  xcb_wm_hints_t       *hints = NULL;
 
-  if((wmh = XGetWMHints(dpy, c->win))) {
-    if(c == selmon->sel && wmh->flags & XUrgencyHint) {
-      wmh->flags &= ~XUrgencyHint;
-      XSetWMHints(dpy, c->win, wmh);
+  cookie = xcb_get_wm_hints(xcb_dpy, c->win);
+  if(xcb_get_wm_hints_reply(xcb_dpy, cookie, hints, NULL)) {
+    if(c == selmon->sel && hints->flags & XCB_WM_HINT_X_URGENCY) {
+      hints->flags &= ~XCB_WM_HINT_X_URGENCY;
+      xcb_set_wm_hints(xcb_dpy, c->win, hints);
     }
     else
-      c->isurgent = (wmh->flags & XUrgencyHint) ? True : False;
-    XFree(wmh);
+      c->isurgent = (hints->flags & XCB_WM_HINT_X_URGENCY) ? True : False;
+    free(hints);
   }
 }
 
