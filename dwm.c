@@ -1104,16 +1104,15 @@ killclient(const Arg *arg) {
   }
   else {
     int i;
-    XGrabServer(dpy);
+    xcb_grab_server(xcb_dpy);
     for (i = 0; i < 256; ++i)
       xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerrordummy, NULL);
-    XSetCloseDownMode(dpy, DestroyAll);
-    XKillClient(dpy, selmon->sel->win);
-    XSync(dpy, false);
+    xcb_set_close_down_mode(xcb_dpy, XCB_CLOSE_DOWN_DESTROY_ALL);
+    xcb_kill_client(xcb_dpy, selmon->sel->win);
     xcb_flush(xcb_dpy);
     for (i = 0; i < 256; ++i)
       xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerror, NULL);
-    XUngrabServer(dpy);
+    xcb_ungrab_server(xcb_dpy);
   }
 }
 
@@ -1248,9 +1247,20 @@ movemouse(const Arg *arg) {
   restack(selmon);
   ocx = c->x;
   ocy = c->y;
-  if(XGrabPointer(dpy, root, false, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-		  None, cursor[CurMove], CurrentTime) != GrabSuccess)
+  // Grab pointer
+  xcb_grab_pointer_cookie_t cookie;
+  cookie = xcb_grab_pointer_unchecked(xcb_dpy, false, root, MOUSEMASK,
+			    XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+			    XCB_WINDOW_NONE, cursor[CurMove], XCB_CURRENT_TIME);
+  xcb_grab_pointer_reply_t *reply;
+  reply = xcb_grab_pointer_reply(xcb_dpy, cookie, NULL);
+  if(!reply) return;
+  if(reply->status != XCB_GRAB_STATUS_SUCCESS) {
+    free(reply);
     return;
+  }
+  free(reply);
+
   if(!getrootptr(&x, &y))
     return;
   do {
@@ -1286,7 +1296,8 @@ movemouse(const Arg *arg) {
       break;
     }
   } while(ev->response_type != XCB_BUTTON_RELEASE);
-  XUngrabPointer(dpy, CurrentTime);
+  xcb_ungrab_pointer(xcb_dpy, XCB_CURRENT_TIME);
+  xcb_flush(xcb_dpy);
   if((m = ptrtomon(c->x + c->w / 2, c->y + c->h / 2)) != selmon) {
     sendmon(c, m);
     selmon = m;
@@ -1376,13 +1387,26 @@ resizemouse(const Arg *arg) {
   restack(selmon);
   ocx = c->x;
   ocy = c->y;
-  if(XGrabPointer(dpy, root, false, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-		  None, cursor[CurResize], CurrentTime) != GrabSuccess)
+  // Grab pointer
+  xcb_grab_pointer_cookie_t cookie;
+  cookie = xcb_grab_pointer_unchecked(xcb_dpy, false, root, MOUSEMASK,
+			    XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+			    XCB_WINDOW_NONE, cursor[CurResize], XCB_CURRENT_TIME);
+  xcb_grab_pointer_reply_t *reply;
+  reply = xcb_grab_pointer_reply(xcb_dpy, cookie, NULL);
+  if(!reply) return;
+  if(reply->status != XCB_GRAB_STATUS_SUCCESS) {
+    free(reply);
     return;
-  XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
+  }
+  free(reply);
+
+  xcb_warp_pointer(xcb_dpy, XCB_NONE, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
   do {
     // XCB does not provide an equivalent for XMaskEvent
     ev = xcb_wait_for_event(xcb_dpy);
+    fprintf(stderr, "resizemouse() received event %d (%s)\n", ev->response_type,
+	    xcb_event_get_label(ev->response_type));
     switch(ev->response_type) {
     case XCB_CONFIGURE_REQUEST:
     case XCB_EXPOSE:
@@ -1405,9 +1429,10 @@ resizemouse(const Arg *arg) {
       break;
     }
   } while(ev->response_type != XCB_BUTTON_RELEASE);
-  XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
-  XUngrabPointer(dpy, CurrentTime);
-  // while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
+  xcb_warp_pointer(xcb_dpy, XCB_NONE, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
+  xcb_ungrab_pointer(xcb_dpy, XCB_CURRENT_TIME);
+  xcb_flush(xcb_dpy);
+  // while(XCheckMaskEvent(dpy, EnterWindowMask, &xev));
   if((m = ptrtomon(c->x + c->w / 2, c->y + c->h / 2)) != selmon) {
     sendmon(c, m);
     selmon = m;
@@ -1434,10 +1459,10 @@ restack(Monitor *m) {
 	wc[0] = c->win;
       }
   }
-  XSync(dpy, false);
 
-  XEvent ev;
-  while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
+  xcb_flush(xcb_dpy);
+
+  // while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
 
 void
