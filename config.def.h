@@ -43,9 +43,10 @@ static const Layout layouts[] = {
 #define MODKEY XCB_MOD_MASK_1
 #define TAGKEYS(KEY,TAG) \
 	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
-	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
-	{ MODKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
-	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} },
+	{ MODKEY|XCB_MOD_MASK_CONTROL,  KEY,      toggleview,     {.ui = 1 << TAG} }, \
+	{ MODKEY|XCB_MOD_MASK_SHIFT,    KEY,      tag,            {.ui = 1 << TAG} }, \
+	{ MODKEY|XCB_MOD_MASK_CONTROL|XCB_MOD_MASK_SHIFT, \
+                                        KEY,      toggletag,      {.ui = 1 << TAG} },
 
 /* helper for spawning shell commands in the pre dwm-5.0 fashion */
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
@@ -72,13 +73,13 @@ static Key keys[] = {
 	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
 	{ MODKEY,                       XK_space,  setlayout,      {0} },
-	{ MODKEY|XCB_MOD_MASK_SHIFT,             XK_space,  togglefloating, {0} },
+	{ MODKEY|XCB_MOD_MASK_SHIFT,    XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
-	{ MODKEY|XCB_MOD_MASK_SHIFT,             XK_0,      tag,            {.ui = ~0 } },
+	{ MODKEY|XCB_MOD_MASK_SHIFT,    XK_0,      tag,            {.ui = ~0 } },
 	{ MODKEY,                       XK_comma,  focusmon,       {.i = -1 } },
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
-	{ MODKEY|XCB_MOD_MASK_SHIFT,             XK_comma,  tagmon,         {.i = -1 } },
-	{ MODKEY|XCB_MOD_MASK_SHIFT,             XK_period, tagmon,         {.i = +1 } },
+	{ MODKEY|XCB_MOD_MASK_SHIFT,    XK_comma,  tagmon,         {.i = -1 } },
+	{ MODKEY|XCB_MOD_MASK_SHIFT,    XK_period, tagmon,         {.i = +1 } },
 	TAGKEYS(                        XK_1,                      0)
 	TAGKEYS(                        XK_2,                      1)
 	TAGKEYS(                        XK_3,                      2)
@@ -97,16 +98,16 @@ static Key keys[] = {
 /* click can be ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
 static Button buttons[] = {
 	/* click                event mask      button          function        argument */
-	{ ClkLtSymbol,          0,              XCB_BUTTON_MASK_1,        setlayout,      {0} },
-	{ ClkLtSymbol,          0,              XCB_BUTTON_MASK_3,        setlayout,      {.v = &layouts[2]} },
-	{ ClkWinTitle,          0,              XCB_BUTTON_MASK_2,        zoom,           {0} },
-	{ ClkStatusText,        0,              XCB_BUTTON_MASK_2,        spawn,          {.v = termcmd } },
-	{ ClkClientWin,         MODKEY,         XCB_BUTTON_MASK_1,        movemouse,      {0} },
-	{ ClkClientWin,         MODKEY,         XCB_BUTTON_MASK_2,        togglefloating, {0} },
-	{ ClkClientWin,         MODKEY,         XCB_BUTTON_MASK_3,        resizemouse,    {0} },
-	{ ClkTagBar,            0,              XCB_BUTTON_MASK_1,        view,           {0} },
-	{ ClkTagBar,            0,              XCB_BUTTON_MASK_3,        toggleview,     {0} },
-	{ ClkTagBar,            MODKEY,         XCB_BUTTON_MASK_1,        tag,            {0} },
-	{ ClkTagBar,            MODKEY,         XCB_BUTTON_MASK_3,        toggletag,      {0} },
+	{ ClkLtSymbol,          0,              1,        setlayout,      {0} },
+	{ ClkLtSymbol,          0,              3,        setlayout,      {.v = &layouts[2]} },
+	{ ClkWinTitle,          0,              2,        zoom,           {0} },
+	{ ClkStatusText,        0,              2,        spawn,          {.v = termcmd } },
+	{ ClkClientWin,         MODKEY,         1,        movemouse,      {0} },
+	{ ClkClientWin,         MODKEY,         2,        togglefloating, {0} },
+	{ ClkClientWin,         MODKEY,         3,        resizemouse,    {0} },
+	{ ClkTagBar,            0,              1,        view,           {0} },
+	{ ClkTagBar,            0,              3,        toggleview,     {0} },
+	{ ClkTagBar,            MODKEY,         1,        tag,            {0} },
+	{ ClkTagBar,            MODKEY,         3,        toggletag,      {0} },
 };
 
