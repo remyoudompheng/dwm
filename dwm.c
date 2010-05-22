@@ -52,7 +52,7 @@
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
-#define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
+#define MOUSEMASK               (BUTTONMASK|XCB_EVENT_MASK_POINTER_MOTION)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
@@ -808,7 +808,8 @@ enternotify(xcb_generic_event_t *e) {
   Monitor *m;
   xcb_enter_notify_event_t *ev = (xcb_enter_notify_event_t *)e;
 
-  if((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->event != root)
+  if((ev->mode != XCB_NOTIFY_MODE_NORMAL
+      || ev->detail == XCB_NOTIFY_DETAIL_INFERIOR) && ev->event != root)
     return;
   if((m = wintomon(ev->event)) && m != selmon) {
     unfocus(selmon->sel);
@@ -844,10 +845,12 @@ focus(Client *c) {
     attachstack(c);
     grabbuttons(c, true);
     XSetWindowBorder(dpy, c->win, dc.sel[ColBorder]);
-    xcb_set_input_focus(xcb_dpy, RevertToPointerRoot, c->win, CurrentTime);
+    xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+			c->win, XCB_TIME_CURRENT_TIME);
   }
   else
-    xcb_set_input_focus(xcb_dpy, RevertToPointerRoot, root, CurrentTime);
+    xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+			root, XCB_TIME_CURRENT_TIME);
   selmon->sel = c;
   drawbars();
 }
@@ -857,7 +860,8 @@ focusin(xcb_generic_event_t *e) { /* there are some broken focus acquiring clien
   xcb_focus_in_event_t *ev = (xcb_focus_in_event_t *)e;
 
   if(selmon->sel && ev->event != selmon->sel->win)
-    xcb_set_input_focus(xcb_dpy, RevertToPointerRoot, selmon->sel->win, CurrentTime);
+    xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+			selmon->sel->win, XCB_TIME_CURRENT_TIME);
 }
 
 void
@@ -971,7 +975,7 @@ grabbuttons(Client *c, int focused) {
   {
     unsigned int i, j;
     unsigned int modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
-				 XCB_MOD_MASK_LOCK|numlockmask };
+				 XCB_MOD_MASK_LOCK | numlockmask };
     xcb_ungrab_button(xcb_dpy, AnyButton, c->win, AnyModifier);
     if(focused) {
       for(i = 0; i < LENGTH(buttons); i++)
@@ -995,7 +999,8 @@ grabkeys(void) {
   updatenumlockmask();
   {
     unsigned int i, j;
-    unsigned int modifiers[] = { 0, LockMask, numlockmask, numlockmask|LockMask };
+    unsigned int modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
+				 numlockmask | XCB_MOD_MASK_LOCK };
     xcb_keycode_t *code;
 
     xcb_ungrab_key(xcb_dpy, AnyKey, root, AnyModifier);
@@ -1289,12 +1294,12 @@ movemouse(const Arg *arg) {
     ev = xcb_wait_for_event(xcb_dpy);
     if (!ev) continue;
     switch (ev->response_type) {
-    case ConfigureRequest:
-    case Expose:
-    case MapRequest:
+    case XCB_CONFIGURE_REQUEST:
+    case XCB_EXPOSE:
+    case XCB_MAP_REQUEST:
       handler(ev);
       break;
-    case MotionNotify:
+    case XCB_MOTION_NOTIFY:
       e = (xcb_motion_notify_event_t *)ev;
       nx = ocx + (e->event_x - x);
       ny = ocy + (e->event_y - y);
@@ -1316,7 +1321,7 @@ movemouse(const Arg *arg) {
 	resize(c, nx, ny, c->w, c->h, true);
       break;
     }
-  } while(ev->response_type != ButtonRelease);
+  } while(ev->response_type != XCB_BUTTON_RELEASE);
   XUngrabPointer(dpy, CurrentTime);
   if((m = ptrtomon(c->x + c->w / 2, c->y + c->h / 2)) != selmon) {
     sendmon(c, m);
@@ -1419,12 +1424,12 @@ resizemouse(const Arg *arg) {
     // XCB does not provide an equivalent for XMaskEvent
     ev = xcb_wait_for_event(xcb_dpy);
     switch(ev->response_type) {
-    case ConfigureRequest:
-    case Expose:
-    case MapRequest:
+    case XCB_CONFIGURE_REQUEST:
+    case XCB_EXPOSE:
+    case XCB_MAP_REQUEST:
       handler(ev);
       break;
-    case MotionNotify:
+    case XCB_MOTION_NOTIFY:
       e = (xcb_motion_notify_event_t *)ev;
       nw = MAX(e->event_x - ocx - 2 * c->bw + 1, 1);
       nh = MAX(e->event_y - ocy - 2 * c->bw + 1, 1);
@@ -1439,7 +1444,7 @@ resizemouse(const Arg *arg) {
 	resize(c, c->x, c->y, nw, nh, true);
       break;
     }
-  } while(ev->response_type != ButtonRelease);
+  } while(ev->response_type != XCB_BUTTON_RELEASE);
   XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
   XUngrabPointer(dpy, CurrentTime);
   // while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
@@ -1829,7 +1834,8 @@ unfocus(Client *c) {
     return;
   grabbuttons(c, false);
   XSetWindowBorder(dpy, c->win, dc.norm[ColBorder]);
-  XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
+  xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+		      root, XCB_TIME_CURRENT_TIME);
 }
 
 void
