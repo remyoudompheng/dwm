@@ -32,10 +32,7 @@
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
 #include <X11/keysym.h>
-#include <X11/Xatom.h>
-// #include <X11/Xlib.h>
-#include <X11/Xproto.h>
-#include <X11/Xutil.h>
+#include <X11/Xlib.h>
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
@@ -323,7 +320,6 @@ applyrules(Client *c) {
 
 int
 applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact) {
-  int baseismin;
   Monitor *m = c->mon;
 
   /* set minimum possible */
@@ -355,7 +351,7 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact) {
     *w = bh;
   if(resizehints || c->isfloating) {
     /* see last two sentences in ICCCM 4.1.2.3 */
-    baseismin = c->basew == c->minw && c->baseh == c->minh;
+    int baseismin = c->basew == c->minw && c->baseh == c->minh;
     if(!baseismin) { /* temporarily remove base dimensions */
       *w -= c->basew;
       *h -= c->baseh;
