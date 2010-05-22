@@ -248,8 +248,8 @@ static void viewnext(const Arg *arg);
 static void viewprev(const Arg *arg);
 static Client *wintoclient(xcb_window_t w);
 static Monitor *wintomon(xcb_window_t w);
-static int xerror(Display *dpy, XErrorEvent *ee);
-static int xerrordummy(Display *dpy, XErrorEvent *ee);
+static int xerror(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee);
+static int xerrordummy(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee);
 static void zoom(const Arg *arg);
 
 /* variables */
@@ -1106,12 +1106,16 @@ killclient(const Arg *arg) {
     XSendEvent(dpy, selmon->sel->win, false, NoEventMask, &ev);
   }
   else {
+    int i;
     XGrabServer(dpy);
-    XSetErrorHandler(xerrordummy);
+    for (i = 0; i < 256; ++i)
+      xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerrordummy, NULL);
     XSetCloseDownMode(dpy, DestroyAll);
     XKillClient(dpy, selmon->sel->win);
     XSync(dpy, false);
-    XSetErrorHandler(xerror);
+    xcb_flush(xcb_dpy);
+    for (i = 0; i < 256; ++i)
+      xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerror, NULL);
     XUngrabServer(dpy);
   }
 }
@@ -1601,7 +1605,10 @@ setup(void) {
   xcb_event_set_map_request_handler(&evenths, maprequest, NULL);
   xcb_event_set_property_notify_handler(&evenths, propertynotify, NULL);
   xcb_event_set_unmap_notify_handler(&evenths, unmapnotify, NULL);
-
+  /* init error handler */
+  int i;
+  for (i = 0; i < 256; ++i)
+    xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerror, NULL);
   /* init atoms */
   xcb_intern_atom_cookie_t atom_c[5];
   atom_c[0] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
@@ -2122,24 +2129,26 @@ wintomon(xcb_window_t w) {
  * ignored (especially on UnmapNotify's).  Other types of errors call Xlibs
  * default error handler, which may call exit.  */
 int
-xerror(Display *dpy, XErrorEvent *ee) {
-  if(ee->error_code == BadWindow
-     || (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch)
-     || (ee->request_code == X_PolyText8 && ee->error_code == BadDrawable)
-     || (ee->request_code == X_PolyFillRectangle && ee->error_code == BadDrawable)
-     || (ee->request_code == X_PolySegment && ee->error_code == BadDrawable)
-     || (ee->request_code == X_ConfigureWindow && ee->error_code == BadMatch)
-     || (ee->request_code == X_GrabButton && ee->error_code == BadAccess)
-     || (ee->request_code == X_GrabKey && ee->error_code == BadAccess)
-     || (ee->request_code == X_CopyArea && ee->error_code == BadDrawable))
+xerror(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee) {
+  if(ee->error_code == XCB_EVENT_ERROR_BAD_WINDOW
+     || (ee->major_code == XCB_SET_INPUT_FOCUS && ee->error_code == XCB_EVENT_ERROR_BAD_MATCH)
+     || (ee->major_code == XCB_POLY_TEXT_8 && ee->error_code == XCB_EVENT_ERROR_BAD_DRAWABLE)
+     || (ee->major_code == XCB_POLY_FILL_RECTANGLE && ee->error_code == XCB_EVENT_ERROR_BAD_DRAWABLE)
+     || (ee->major_code == XCB_POLY_SEGMENT && ee->error_code == XCB_EVENT_ERROR_BAD_DRAWABLE)
+     || (ee->major_code == XCB_CONFIGURE_WINDOW && ee->error_code == XCB_EVENT_ERROR_BAD_MATCH)
+     || (ee->major_code == XCB_GRAB_BUTTON && ee->error_code == XCB_EVENT_ERROR_BAD_ACCESS)
+     || (ee->major_code == XCB_GRAB_KEY && ee->error_code == XCB_EVENT_ERROR_BAD_ACCESS)
+     || (ee->major_code == XCB_COPY_AREA && ee->error_code == XCB_EVENT_ERROR_BAD_DRAWABLE))
     return 0;
-  fprintf(stderr, "dwm: fatal error: request code=%d, error code=%d\n",
-	  ee->request_code, ee->error_code);
-  return xerrorxlib(dpy, ee); /* may call exit */
+  fprintf(stderr, "dwm: fatal error: request code=%d (%s), error code=%d (%s)\n",
+	  ee->major_code, xcb_event_get_request_label(ee->major_code),
+	  ee->error_code, xcb_event_get_error_label(ee->error_code));
+  return 1;
+  // return xerrorxlib(dpy, ee); /* may call exit */
 }
 
 int
-xerrordummy(Display *dpy, XErrorEvent *ee) {
+xerrordummy(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee) {
   return 0;
 }
 
