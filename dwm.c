@@ -604,11 +604,7 @@ configurerequest(xcb_generic_event_t *e) {
 	 && !(ev->value_mask & (XCB_CONFIG_WINDOW_WIDTH|XCB_CONFIG_WINDOW_HEIGHT)))
 	configure(c);
       if(ISVISIBLE(c)) {
-	uint32_t geom[4];
-	geom[0] = c->x;
-	geom[1] = c->y;
-	geom[2] = c->w;
-	geom[3] = c->h;
+	uint32_t geom[] = { c->x, c->y, c->w, c->h };
 	xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
       }
     }
@@ -1219,11 +1215,8 @@ manage(xcb_window_t w,
   attach(c);
   attachstack(c);
 
-  uint32_t geom[4];
-  geom[0] = c->x + 2*sw;  /* some windows require this */
-  geom[1] = c->y;
-  geom[2] = c->w;
-  geom[3] = c->h;
+  uint32_t geom[] = {c->x + 2*sw, /* some windows require this */
+		     c->y, c->w, c->h };
   xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
   xcb_map_window(xcb_dpy, c->win);
   setclientstate(c, NormalState);
@@ -1389,14 +1382,9 @@ quit(const Arg *arg) {
 
 void
 resize(Client *c, int x, int y, int w, int h, int interact) {
-  uint32_t geom[5];
-
   if(applysizehints(c, &x, &y, &w, &h, interact)) {
-    c->x = geom[0] = x;
-    c->y = geom[1] = y;
-    c->w = geom[2] = w;
-    c->h = geom[3] = h;
-    geom[4] = c->bw;
+    c->x = x; c->y = y; c->w = w; c->h = h;
+    uint32_t geom[] = {x, y, w, h, c->bw};
     xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE |
 			 XCB_CONFIG_WINDOW_BORDER_WIDTH, geom);
     configure(c);
