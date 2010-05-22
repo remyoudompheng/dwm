@@ -933,27 +933,32 @@ getstate(Window w) {
 }
 
 Bool
-gettextprop(Window w, Atom atom, char *text, unsigned int size) {
+gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
   char **list = NULL;
   int n;
-  XTextProperty name;
+
+  xcb_get_property_cookie_t cookie = 
+    xcb_get_text_property_unchecked(xcb_dpy, w, atom);
 
   if(!text || size == 0)
     return False;
   text[0] = '\0';
-  XGetTextProperty(dpy, w, &name, atom);
-  if(!name.nitems)
+
+  xcb_get_text_property_reply_t tp;
+  if(!(xcb_get_text_property_reply(xcb_dpy, cookie, &tp, NULL)))
     return False;
-  if(name.encoding == XA_STRING)
-    strncpy(text, (char *)name.value, size - 1);
-  else {
-    if(XmbTextPropertyToTextList(dpy, &name, &list, &n) >= Success && n > 0 && *list) {
+  if(!tp.name_len)
+    return False;
+  if(tp.encoding == XCB_ATOM_STRING)
+    strncpy(text, tp.name, size - 1);
+  /*  else {
+    if(XmbTextPropertyToTextList(dpy, &tp, &list, &n) >= Success && n > 0 && *list) {
       strncpy(text, *list, size - 1);
       XFreeStringList(list);
     }
-  }
+  } */
   text[size - 1] = '\0';
-  XFree(name.value);
+  xcb_get_text_property_reply_wipe(&tp);
   return True;
 }
 
@@ -1339,27 +1344,27 @@ propertynotify(xcb_generic_event_t *e) {
   Window trans;
   xcb_property_notify_event_t *ev = (xcb_property_notify_event_t *)e;
 
-  if((ev->window == root) && (ev->atom == XA_WM_NAME))
+  if((ev->window == root) && (ev->atom == XCB_ATOM_WM_NAME))
     updatestatus();
   else if(ev->state == PropertyDelete)
     return; /* ignore */
   else if((c = wintoclient(ev->window))) {
     switch (ev->atom) {
     default: break;
-    case XA_WM_TRANSIENT_FOR:
+    case XCB_ATOM_WM_TRANSIENT_FOR:
       XGetTransientForHint(dpy, c->win, &trans);
       if(!c->isfloating && (c->isfloating = (wintoclient(trans) != NULL)))
 	arrange(c->mon);
       break;
-    case XA_WM_NORMAL_HINTS:
+    case XCB_ATOM_WM_NORMAL_HINTS:
       updatesizehints(c);
       break;
-    case XA_WM_HINTS:
+    case XCB_ATOM_WM_HINTS:
       updatewmhints(c);
       drawbars();
       break;
     }
-    if(ev->atom == XA_WM_NAME || ev->atom == netatom[NetWMName]) {
+    if(ev->atom == XCB_ATOM_WM_NAME || ev->atom == netatom[NetWMName]) {
       updatetitle(c);
       if(c == c->mon->sel)
 	drawbar(c->mon);
@@ -2043,14 +2048,14 @@ updatesizehints(Client *c) {
 void
 updatetitle(Client *c) {
   if(!gettextprop(c->win, netatom[NetWMName], c->name, sizeof c->name))
-    gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
+    gettextprop(c->win, XCB_ATOM_WM_NAME, c->name, sizeof c->name);
   if(c->name[0] == '\0') /* hack to mark broken clients */
     strcpy(c->name, broken);
 }
 
 void
 updatestatus(void) {
-  if(!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
+  if(!gettextprop(root, XCB_ATOM_WM_NAME, stext, sizeof(stext)))
     strcpy(stext, "dwm-"VERSION);
   drawbar(selmon);
 }
