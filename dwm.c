@@ -33,7 +33,7 @@
 #include <X11/cursorfont.h>
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
-#include <X11/Xlib.h>
+// #include <X11/Xlib.h>
 #include <X11/Xproto.h>
 #include <X11/Xutil.h>
 #ifdef XINERAMA
@@ -189,8 +189,8 @@ static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static unsigned long getcolor(const char *colstr);
 static Bool getrootptr(int *x, int *y);
-static long getstate(Window w);
-static Bool gettextprop(Window w, Atom atom, char *text, unsigned int size);
+// static long getstate(Window w);
+static Bool gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size);
 static void grabbuttons(Client *c, Bool focused);
 static void grabkeys(void);
 static void handler(xcb_generic_event_t *ev);
@@ -913,7 +913,7 @@ getrootptr(int *x, int *y) {
 
   return XQueryPointer(dpy, root, &dummy, &dummy, x, y, &di, &di, &dui);
 }
-
+/*
 long
 getstate(Window w) {
   int format, status;
@@ -931,13 +931,13 @@ getstate(Window w) {
   XFree(p);
   return result;
 }
-
+*/
 Bool
 gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
   char **list = NULL;
   int n;
 
-  xcb_get_property_cookie_t cookie = 
+  xcb_get_property_cookie_t cookie =
     xcb_get_text_property_unchecked(xcb_dpy, w, atom);
 
   if(!text || size == 0)
@@ -1478,7 +1478,7 @@ run(void) {
   /* main event loop */
   xcb_flush(xcb_dpy);
   while(running && (ev = xcb_wait_for_event(xcb_dpy)))
-      handler(ev); /* call handler */
+    handler(ev); /* call handler */
 }
 
 void
