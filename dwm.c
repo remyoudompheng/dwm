@@ -1047,15 +1047,18 @@ initfont(const char *fontstr) {
 
 int
 isprotodel(Client *c) {
-  int i, n;
-  Atom *protocols;
+  int i;
   int ret = false;
 
-  if(XGetWMProtocols(dpy, c->win, &protocols, &n)) {
-    for(i = 0; !ret && i < n; i++)
-      if(protocols[i] == wmatom[WMDelete])
+  xcb_get_property_cookie_t cookie;
+  cookie = xcb_get_wm_protocols_unchecked(xcb_dpy, c->win, wmatom[WMProtocols]);
+
+  xcb_get_wm_protocols_reply_t protocols;
+  if(xcb_get_wm_protocols_reply(xcb_dpy, cookie, &protocols, NULL)) {
+    for(i = 0; !ret && i < protocols.atoms_len; i++)
+      if(protocols.atoms[i] == wmatom[WMDelete])
 	ret = true;
-    XFree(protocols);
+    xcb_get_wm_protocols_reply_wipe(&protocols);
   }
   return ret;
 }
