@@ -10,8 +10,8 @@ static const char selbgcolor[]      = "#0066ff";
 static const char selfgcolor[]      = "#ffffff";
 static const unsigned int borderpx  = 1;        /* border pixel of windows */
 static const unsigned int snap      = 32;       /* snap pixel */
-static const Bool showbar           = true;     /* false means no bar */
-static const Bool topbar            = true;     /* false means bottom bar */
+static const int showbar           = true;     /* false means no bar */
+static const int topbar            = true;     /* false means bottom bar */
 
 /* tagging */
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
@@ -30,7 +30,7 @@ static const Rule rules[] = {
 
 /* layout(s) */
 static const float mfact      = 0.55; /* factor of master area size [0.05..0.95] */
-static const Bool resizehints = true; /* true means respect size hints in tiled resizals */
+static const int resizehints = true; /* true means respect size hints in tiled resizals */
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
