@@ -217,7 +217,7 @@ static void restack(Monitor *m);
 static void run(void);
 static void scan(void);
 static void sendmon(Client *c, Monitor *m);
-static void setclientstate(Client *c, long state);
+static void setclientstate(Client *c, xcb_wm_state_t state);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
@@ -1219,7 +1219,7 @@ manage(xcb_window_t w,
 		     c->y, c->w, c->h };
   xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
   xcb_map_window(xcb_dpy, c->win);
-  setclientstate(c, NormalState);
+  setclientstate(c, XCB_WM_STATE_NORMAL);
   arrange(c->mon);
 }
 
@@ -1453,7 +1453,7 @@ restack(Monitor *m) {
   if(!m->sel)
     return;
   if(m->sel->isfloating || !m->lt[m->sellt]->arrange)
-    xcb_raise_window(dpy, m->sel->win);
+    xcb_raise_window(xcb_dpy, m->sel->win);
   if(m->lt[m->sellt]->arrange) {
     uint32_t wc[] = { m->barwin, XCB_STACK_MODE_BELOW };
     for(c = m->stack; c; c = c->snext)
@@ -1567,11 +1567,12 @@ sendmon(Client *c, Monitor *m) {
 }
 
 void
-setclientstate(Client *c, long state) {
-  long data[] = { state, None };
+setclientstate(Client *c, xcb_wm_state_t state) {
+  long data[] = { state, XCB_NONE };
 
-  XChangeProperty(dpy, c->win, wmatom[WMState], wmatom[WMState], 32,
-		  PropModeReplace, (unsigned char *)data, 2);
+  xcb_change_property(xcb_dpy, XCB_PROP_MODE_REPLACE, c->win,
+		      wmatom[WMState], wmatom[WMState], 32,
+		      2, data);
 }
 
 void
@@ -1841,7 +1842,7 @@ unmanage(Client *c, int destroyed) {
     xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH,
 			 &(c->oldbw)); /* restore border */
     xcb_ungrab_button(xcb_dpy, AnyButton, c->win, AnyModifier);
-    setclientstate(c, WithdrawnState);
+    setclientstate(c, XCB_WM_STATE_WITHDRAWN);
     xcb_flush(xcb_dpy);
     xcb_ungrab_server(xcb_dpy);
   }
