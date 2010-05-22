@@ -1711,6 +1711,7 @@ showhide(Client *c) {
     geom[0] = c->x + 2 * sw; geom[1] = c->y;
     xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
   }
+  xcb_flush(xcb_dpy);
 }
 
 
@@ -1857,8 +1858,8 @@ unmanage(Client *c, int destroyed) {
 			 &(c->oldbw)); /* restore border */
     xcb_ungrab_button(xcb_dpy, XCB_GRAB_ANY, c->win, XCB_MOD_MASK_ANY);
     setclientstate(c, XCB_WM_STATE_WITHDRAWN);
-    xcb_flush(xcb_dpy);
     xcb_ungrab_server(xcb_dpy);
+    xcb_flush(xcb_dpy);
   }
   free(c);
   focus(NULL);
@@ -1942,7 +1943,7 @@ updategeom(void) {
     for(i = 0, j = 0; i < nn; i++)
       if(isuniquegeom(unique, j, &info[i]))
 	memcpy(&unique[j++], &info[i], sinfo_s);
-    free(info);
+    free(reply_qs);
     nn = j;
     if(n <= nn) {
       for(i = 0; i < (nn - n); i++) { /* new monitors available */
