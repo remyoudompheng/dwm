@@ -533,10 +533,9 @@ clearurgent(Client *c) {
 
 void
 configure(Client *c) {
-  XConfigureEvent ce;
+  xcb_configure_notify_event_t ce;
 
-  ce.type = ConfigureNotify;
-  ce.display = dpy;
+  ce.response_type = XCB_CONFIGURE_NOTIFY;
   ce.event = c->win;
   ce.window = c->win;
   ce.x = c->x;
@@ -544,9 +543,9 @@ configure(Client *c) {
   ce.width = c->w;
   ce.height = c->h;
   ce.border_width = c->bw;
-  ce.above = None;
+  ce.above_sibling = XCB_WINDOW_NONE;
   ce.override_redirect = False;
-  XSendEvent(dpy, c->win, False, StructureNotifyMask, (XEvent *)&ce);
+  xcb_send_event(xcb_dpy, 0, c->win, XCB_EVENT_MASK_STRUCTURE_NOTIFY, (const char*)&ce);
 }
 
 void
