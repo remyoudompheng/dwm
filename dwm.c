@@ -485,7 +485,7 @@ cleanup(void) {
     XFreeFontSet(dpy, dc.font.set);
   else
     XFreeFont(dpy, dc.font.xfont);
-  xcb_ungrab_key(xcb_dpy, AnyKey, root, AnyModifier);
+  xcb_ungrab_key(xcb_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
   xcb_key_symbols_free(keysyms);
   XFreePixmap(dpy, dc.drawable);
   XFreeGC(dpy, dc.gc);
@@ -967,7 +967,7 @@ grabbuttons(Client *c, int focused) {
     unsigned int i, j;
     unsigned int modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
 				 XCB_MOD_MASK_LOCK | numlockmask };
-    xcb_ungrab_button(xcb_dpy, AnyButton, c->win, AnyModifier);
+    xcb_ungrab_button(xcb_dpy, XCB_GRAB_ANY, c->win, XCB_MOD_MASK_ANY);
     if(focused) {
       for(i = 0; i < LENGTH(buttons); i++)
 	if(buttons[i].click == ClkClientWin)
@@ -981,7 +981,7 @@ grabbuttons(Client *c, int focused) {
       xcb_grab_button(xcb_dpy, 0, c->win,
 		      BUTTONMASK, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
 		      XCB_WINDOW_NONE, XCB_CURSOR_NONE,
-		      AnyButton, XCB_BUTTON_MASK_ANY);
+		      XCB_GRAB_ANY, XCB_BUTTON_MASK_ANY);
   }
 }
 
@@ -994,7 +994,7 @@ grabkeys(void) {
 				 numlockmask | XCB_MOD_MASK_LOCK };
     xcb_keycode_t *code;
 
-    xcb_ungrab_key(xcb_dpy, AnyKey, root, AnyModifier);
+    xcb_ungrab_key(xcb_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
     for(i = 0; i < LENGTH(keys); i++) {
       if((code = xcb_key_symbols_get_keycode(keysyms, keys[i].keysym)))
 	for(j = 0; j < LENGTH(modifiers); j++)
@@ -1317,7 +1317,7 @@ propertynotify(void *dummy, xcb_connection_t *Xdpy, xcb_property_notify_event_t 
 
   if((ev->window == root) && (ev->atom == XCB_ATOM_WM_NAME))
     updatestatus();
-  else if(ev->state == PropertyDelete)
+  else if(ev->state == XCB_PROPERTY_DELETE)
     return 0; /* ignore */
   else if((c = wintoclient(ev->window))) {
     switch (ev->atom) {
@@ -1830,7 +1830,7 @@ unmanage(Client *c, int destroyed) {
     xcb_grab_server(xcb_dpy);
     xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH,
 			 &(c->oldbw)); /* restore border */
-    xcb_ungrab_button(xcb_dpy, AnyButton, c->win, AnyModifier);
+    xcb_ungrab_button(xcb_dpy, XCB_GRAB_ANY, c->win, XCB_MOD_MASK_ANY);
     setclientstate(c, XCB_WM_STATE_WITHDRAWN);
     xcb_flush(xcb_dpy);
     xcb_ungrab_server(xcb_dpy);
