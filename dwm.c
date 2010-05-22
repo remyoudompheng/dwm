@@ -257,7 +257,7 @@ static xcb_screen_t *screen;  /* X display screen structure */
 #define sw (screen->width_in_pixels)
 #define sh (screen->height_in_pixels)
 static int bh, blw = 0;      /* bar geometry */
-static int (*xerrorxlib)(Display *, XErrorEvent *);
+// static int (*xerrorxlib)(Display *, XErrorEvent *);
 static unsigned int numlockmask = 0;
 static xcb_event_handlers_t evenths;
 static xcb_key_symbols_t *keysyms = 0;
@@ -1236,7 +1236,7 @@ monocle(Monitor *m) {
 
 void
 movemouse(const Arg *arg) {
-  int x, y, ocx, ocy, nx, ny;
+  int32_t x, y, ocx, ocy, nx, ny;
   Client *c;
   Monitor *m;
   xcb_generic_event_t *ev;
@@ -1683,9 +1683,9 @@ setup(void) {
 		      netatom[NetSupported], XCB_ATOM_ATOM, 32,
 		      NetLast, netatom);
   /* select for events */
-  uint32_t wa;
+  xcb_cursor_t wa;
   wa = cursor[CurNormal];
-  xcb_change_window_attributes(xcb_dpy, root, XCB_CW_CURSOR, &wa);
+  xcb_change_window_attributes(xcb_dpy, root, XCB_CW_CURSOR, (uint32_t *)&wa);
   wa = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
     XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW |
     XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE;
@@ -1795,8 +1795,7 @@ void
 togglebar(const Arg *arg) {
   selmon->showbar = !selmon->showbar;
   updatebarpos(selmon);
-  uint32_t geom[4];
-  geom[0] = selmon->wx; geom[1] = selmon->by; geom[2] = selmon->ww; geom[3] = bh;
+  uint32_t geom[] = {selmon->wx, selmon->by, selmon->ww, bh};
   xcb_configure_window(xcb_dpy, selmon->barwin, XCB_CONFIG_MOVERESIZE, geom);
   arrange(selmon);
 }
@@ -1888,8 +1887,8 @@ updatebars(void) {
 		      XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
 		      XCB_CW_BACK_PIXMAP | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK,
 		      wa);
-    uint32_t value_list = cursor[CurNormal];
-    xcb_change_window_attributes(xcb_dpy, m->barwin, XCB_CW_CURSOR, &value_list);
+    xcb_cursor_t value_list[] = { cursor[CurNormal] };
+    xcb_change_window_attributes(xcb_dpy, m->barwin, XCB_CW_CURSOR, (uint32_t*)value_list);
     xcb_map_window(xcb_dpy, m->barwin);
     xcb_raise_window(xcb_dpy, m->barwin);
   }
