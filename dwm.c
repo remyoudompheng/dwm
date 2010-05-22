@@ -597,18 +597,18 @@ configurerequest(void *dummy, xcb_connection_t *dpy, xcb_configure_request_event
 	 && !(ev->value_mask & (XCB_CONFIG_WINDOW_WIDTH|XCB_CONFIG_WINDOW_HEIGHT)))
 	configure(c);
       if(ISVISIBLE(c)) {
-	int32_t geom[] = { c->x, c->y, c->w, c->h };
-	xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, (uint32_t *)geom);
+	uint32_t geom[] = { c->x, c->y, c->w, c->h };
+	xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
       }
     }
     else
       configure(c);
   }
   else {
-    int32_t wc[] =
+    uint32_t wc[] =
       { ev->x, ev->y, ev->width, ev->height,
 	ev->border_width, ev->sibling, ev->stack_mode };
-    xcb_configure_window(xcb_dpy, ev->window, ev->value_mask, (uint32_t *)wc);
+    xcb_configure_window(xcb_dpy, ev->window, ev->value_mask, wc);
   }
   xcb_flush(xcb_dpy);
   return 1;
@@ -1236,7 +1236,7 @@ monocle(Monitor *m) {
 
 void
 movemouse(const Arg *arg) {
-  int32_t x, y, ocx, ocy, nx, ny;
+  int x, y, ocx, ocy, nx, ny;
   Client *c;
   Monitor *m;
   xcb_generic_event_t *ev;
@@ -1365,9 +1365,9 @@ void
 resize(Client *c, int x, int y, int w, int h, int interact) {
   if(applysizehints(c, &x, &y, &w, &h, interact)) {
     c->x = x; c->y = y; c->w = w; c->h = h;
-    int32_t geom[] = {x, y, w, h, c->bw};
+    uint32_t geom[] = {x, y, w, h, c->bw};
     xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE |
-			 XCB_CONFIG_WINDOW_BORDER_WIDTH, (uint32_t*)geom);
+			 XCB_CONFIG_WINDOW_BORDER_WIDTH, geom);
     configure(c);
     xcb_flush(xcb_dpy);
   }
@@ -1698,11 +1698,10 @@ void
 showhide(Client *c) {
   if(!c)
     return;
-  int32_t geom[2];
+  uint32_t geom[2];
   if(ISVISIBLE(c)) { /* show clients top down */
     geom[0] = c->x; geom[1] = c->y;
-    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-			 (uint32_t *)geom);
+    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
     if(!c->mon->lt[c->mon->sellt]->arrange || c->isfloating)
       resize(c, c->x, c->y, c->w, c->h, false);
     showhide(c->snext);
@@ -1710,8 +1709,7 @@ showhide(Client *c) {
   else { /* hide clients bottom up */
     showhide(c->snext);
     geom[0] = c->x + 2 * sw; geom[1] = c->y;
-    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-			 (uint32_t *)geom);
+    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
   }
 }
 
@@ -1796,7 +1794,8 @@ void
 togglebar(const Arg *arg) {
   selmon->showbar = !selmon->showbar;
   updatebarpos(selmon);
-  uint32_t geom[] = {selmon->wx, selmon->by, selmon->ww, bh};
+  uint32_t geom[4];
+  geom[0] = selmon->wx; geom[1] = selmon->by; geom[2] = selmon->ww; geom[3] = bh;
   xcb_configure_window(xcb_dpy, selmon->barwin, XCB_CONFIG_MOVERESIZE, geom);
   arrange(selmon);
 }
