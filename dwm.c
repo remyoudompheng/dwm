@@ -751,7 +751,7 @@ drawbars(void) {
 
 void
 drawsquare(int filled, int empty, int invert, unsigned long col[ColLast]) {
-  int x;
+  int16_t x;
   XGCValues gcv;
   XRectangle r = { dc.x, dc.y, dc.w, dc.h };
 
@@ -775,7 +775,7 @@ drawtext(const char *text, unsigned long col[ColLast], int invert) {
   uint8_t buf[256];
   int i;
   int16_t x, y;
-  int h, len, olen;
+  uint16_t h; int len, olen;
   XRectangle r = { dc.x, dc.y, dc.w, dc.h };
 
   XSetForeground(dpy, dc.gc, col[invert ? ColFG : ColBG]);
@@ -1259,7 +1259,7 @@ movemouse(const Arg *arg) {
   int16_t x, y, ocx, ocy, nx, ny;
   Client *c;
   Monitor *m;
-  xcb_generic_event_t *ev;
+  xcb_generic_event_t *ev = NULL;
   xcb_motion_notify_event_t *e;
 
   if(!(c = selmon->sel))
@@ -1286,6 +1286,7 @@ movemouse(const Arg *arg) {
     return;
   do {
     // XCB does not provide an alternative to XMaskEvent
+    if (ev) free(ev);
     ev = xcb_wait_for_event(xcb_dpy);
     if (!ev) continue;
     switch (ev->response_type) {
@@ -1402,7 +1403,7 @@ resizemouse(const Arg *arg) {
   uint16_t nw, nh;
   Client *c;
   Monitor *m;
-  xcb_generic_event_t *ev;
+  xcb_generic_event_t *ev = NULL;
   xcb_motion_notify_event_t *e;
 
   if(!(c = selmon->sel))
@@ -1412,21 +1413,24 @@ resizemouse(const Arg *arg) {
   ocy = c->y;
   // Grab pointer
   xcb_grab_pointer_cookie_t cookie;
-  cookie = xcb_grab_pointer_unchecked(xcb_dpy, false, root, MOUSEMASK,
+  cookie = xcb_grab_pointer(xcb_dpy, false, root, MOUSEMASK,
 			    XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
 			    XCB_WINDOW_NONE, cursor[CurResize], XCB_CURRENT_TIME);
   xcb_grab_pointer_reply_t *reply;
-  reply = xcb_grab_pointer_reply(xcb_dpy, cookie, NULL);
-  if(!reply) return;
+  reply = xcb_grab_pointer_reply(xcb_dpy, cookie, &xerr);
+  if (xerr) xerror(NULL, xcb_dpy, xerr);
+  assert(reply);
   if(reply->status != XCB_GRAB_STATUS_SUCCESS) {
     free(reply);
     return;
   }
   free(reply);
 
-  xcb_warp_pointer(xcb_dpy, XCB_NONE, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
+  xcb_warp_pointer(xcb_dpy, XCB_NONE, c->win, 0, 0, 0, 0,
+		   c->w + c->bw - 1, c->h + c->bw - 1);
   do {
     // XCB does not provide an equivalent for XMaskEvent
+    if (ev) free(ev);
     ev = xcb_wait_for_event(xcb_dpy);
     fprintf(stderr, "resizemouse() received event %d (%s)\n", ev->response_type,
 	    xcb_event_get_label(ev->response_type));
@@ -2036,7 +2040,7 @@ updatenumlockmask(void) {
   xcb_get_modifier_mapping_reply_t *reply;
 
   numlockmask = 0;
-  cookie = xcb_get_modifier_mapping_unchecked(xcb_dpy);
+  cookie = xcb_get_modifier_mapping(xcb_dpy);
   reply = xcb_get_modifier_mapping_reply(xcb_dpy, cookie, &xerr);
   if (xerr) xerror(NULL, xcb_dpy, xerr);
   assert(reply);
@@ -2047,7 +2051,7 @@ updatenumlockmask(void) {
       if(modmap[i * reply->keycodes_per_modifier + j]
 	 == *keylock)
 	numlockmask = (1 << i);
-  free(modmap); free(reply);
+  free(reply);
 }
 
 void
