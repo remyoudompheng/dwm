@@ -270,6 +270,7 @@ static int running = true;
 static xcb_cursor_t cursor[CurLast];
 static Display *dpy;
 static xcb_connection_t *xcb_dpy;
+static xcb_generic_error_t *xerr;
 static DC dc;
 static Monitor *mons = NULL, *selmon = NULL;
 static xcb_window_t root;
@@ -469,8 +470,8 @@ checkotherwm(void) {
   uint32_t mask = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT;
   xcb_void_cookie_t cookie = xcb_change_window_attributes_checked
     (xcb_dpy, root, XCB_CW_EVENT_MASK, &mask);
-  xcb_generic_error_t *error = xcb_request_check(xcb_dpy, cookie);
-  if(error != NULL)
+  xerr = xcb_request_check(xcb_dpy, cookie);
+  if(xerr)
     die("dwm: another window manager is already running\n");
 }
 
@@ -1268,12 +1269,13 @@ movemouse(const Arg *arg) {
   ocy = c->y;
   // Grab pointer
   xcb_grab_pointer_cookie_t cookie;
-  cookie = xcb_grab_pointer_unchecked(xcb_dpy, false, root, MOUSEMASK,
+  cookie = xcb_grab_pointer(xcb_dpy, false, root, MOUSEMASK,
 			    XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
 			    XCB_WINDOW_NONE, cursor[CurMove], XCB_CURRENT_TIME);
   xcb_grab_pointer_reply_t *reply;
-  reply = xcb_grab_pointer_reply(xcb_dpy, cookie, NULL);
-  if(!reply) return;
+  reply = xcb_grab_pointer_reply(xcb_dpy, cookie, &xerr);
+  if (xerr) xerror(NULL, xcb_dpy, xerr);
+  assert(reply);
   if(reply->status != XCB_GRAB_STATUS_SUCCESS) {
     free(reply);
     return;
@@ -2035,8 +2037,8 @@ updatenumlockmask(void) {
 
   numlockmask = 0;
   cookie = xcb_get_modifier_mapping_unchecked(xcb_dpy);
-  reply = xcb_get_modifier_mapping_reply(xcb_dpy, cookie, NULL);
-
+  reply = xcb_get_modifier_mapping_reply(xcb_dpy, cookie, &xerr);
+  if (xerr) xerror(NULL, xcb_dpy, xerr);
   assert(reply);
   xcb_keycode_t *modmap = xcb_get_modifier_mapping_keycodes(reply);
   xcb_keycode_t *keylock = xcb_key_symbols_get_keycode(keysyms, XK_Num_Lock);
