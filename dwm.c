@@ -775,7 +775,7 @@ drawsquare(int filled, int empty, int invert, uint32_t col[ColLast]) {
 
 void
 drawtext(const char *text, uint32_t col[ColLast], int invert) {
-  uint8_t buf[256];
+  char buf[256];
   int i;
   int16_t x, y;
   uint16_t h; int len, olen;
