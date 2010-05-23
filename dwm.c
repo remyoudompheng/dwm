@@ -1681,17 +1681,25 @@ setup(void) {
   if(atom_reply) { netatom[NetWMName] = atom_reply->atom; free(atom_reply); }
   /* init cursors */
   xcb_font_t font = xcb_generate_id (xcb_dpy);
-  xcb_open_font(xcb_dpy, font, strlen("cursor"), "cursor");
+  xcb_void_cookie_t cookie_fc =
+    xcb_open_font_checked(xcb_dpy, font, strlen("cursor"), "cursor");
+  xerr = xcb_request_check(xcb_dpy, cookie_fc);
+  if(xerr) {
+    xcb_error_print();
+    die("dwm: error loading cursor font\n");
+  }
   cursor[CurNormal] = xcb_generate_id(xcb_dpy);
   cursor[CurResize] = xcb_generate_id(xcb_dpy);
   cursor[CurMove] = xcb_generate_id(xcb_dpy);
   xcb_create_glyph_cursor(xcb_dpy, cursor[CurNormal], font, font,
-			  XC_left_ptr, XC_left_ptr + 1, 0,0,0,0,0,0);
+			  XC_left_ptr, XC_left_ptr + 1,
+			  0, 0, 0, 0xffff, 0xffff, 0xffff);
   xcb_create_glyph_cursor(xcb_dpy, cursor[CurResize], font, font,
-			  XC_sizing, XC_sizing + 1, 0,0,0,0,0,0);
+			  XC_sizing, XC_sizing + 1,
+			  0, 0, 0, 0xffff, 0xffff, 0xffff);
   xcb_create_glyph_cursor(xcb_dpy, cursor[CurMove], font, font,
-			  XC_fleur, XC_fleur + 1, 0,0,0,0,0,0);
-  xcb_flush(xcb_dpy);
+			  XC_fleur, XC_fleur + 1,
+			  0, 0, 0, 0xffff, 0xffff, 0xffff);
   /* init appearance */
   dc.norm[ColBorder] = getcolor(normbordercolor);
   dc.norm[ColBG] = getcolor(normbgcolor);
@@ -1712,9 +1720,8 @@ setup(void) {
 		      netatom[NetSupported], XCB_ATOM_ATOM, 32,
 		      NetLast, netatom);
   /* select for events */
-  xcb_cursor_t wa;
-  wa = cursor[CurNormal];
-  xcb_change_window_attributes(xcb_dpy, root, XCB_CW_CURSOR, (uint32_t *)&wa);
+  uint32_t wa = cursor[CurNormal];
+  xcb_change_window_attributes(xcb_dpy, root, XCB_CW_CURSOR, &wa);
   wa = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
     XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW |
     XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE;
