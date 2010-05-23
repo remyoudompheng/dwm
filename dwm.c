@@ -797,11 +797,13 @@ drawtext(const char *text, uint32_t col[ColLast], int invert) {
   memcpy(buf, text, len);
   if(len < olen)
     for(i = len; i && i > len - 3; buf[--i] = '.');
-  XSetForeground(dpy, dc.gc, col[invert ? ColBG : ColFG]);
-  if(dc.font.set)
-    XmbDrawString(dpy, dc.drawable, dc.font.set, dc.gc, x, y, buf, len);
-  else
-    XDrawString(dpy, dc.drawable, dc.gc, x, y, buf, len);
+  uint32_t textcol[] = { col[invert ? ColBG : ColFG] ,
+			 col[invert ? ColFG : ColBG] };
+  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, textcol);
+  //  if(dc.font.set)
+  //  XmbDrawString(dpy, dc.drawable, dc.font.set, dc.gc_xlib, x, y, buf, len);
+  //else
+  xcb_image_text_8(xcb_dpy, len, dc.drawable, dc.gc, x, y, buf);
 }
 
 int
@@ -846,7 +848,8 @@ focus(Client *c) {
     detachstack(c);
     attachstack(c);
     grabbuttons(c, true);
-    XSetWindowBorder(dpy, c->win, dc.sel[ColBorder]);
+    uint32_t border_color[] = { dc.sel[ColBorder] };
+    xcb_change_window_attributes(xcb_dpy, c->win, XCB_CW_BORDER_PIXEL, border_color);
     xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
 			c->win, XCB_TIME_CURRENT_TIME);
   }
@@ -1213,7 +1216,8 @@ manage(xcb_window_t w,
   }
   uint32_t bw = c->bw;
   xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH, &bw);
-  XSetWindowBorder(dpy, w, dc.norm[ColBorder]);
+  uint32_t border_color[] = { dc.norm[ColBorder] };
+  xcb_change_window_attributes(xcb_dpy, w, XCB_CW_BORDER_PIXEL, border_color);
   configure(c); /* propagates border_width, if size doesn't change */
   updatesizehints(c);
   uint32_t ev_mask = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE |
@@ -1917,7 +1921,8 @@ unfocus(Client *c) {
   if(!c)
     return;
   grabbuttons(c, false);
-  XSetWindowBorder(dpy, c->win, dc.norm[ColBorder]);
+  uint32_t border_color[] = { dc.norm[ColBorder] };
+  xcb_change_window_attributes(xcb_dpy, c->win, XCB_CW_BORDER_PIXEL, border_color);
   xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
 		      root, XCB_TIME_CURRENT_TIME);
 }
