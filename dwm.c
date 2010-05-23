@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
@@ -92,7 +93,8 @@ struct Client {
   int16_t x, y;
   uint16_t w, h;
   int32_t basew, baseh, incw, inch, maxw, maxh, minw, minh;
-  uint32_t bw, oldbw;
+  uint16_t bw;
+  uint32_t oldbw;
   unsigned int tags;
   int isfixed, isfloating, isurgent;
   Client *next;
@@ -102,15 +104,16 @@ struct Client {
 };
 
 typedef struct {
-  int x, y, w, h;
+  int16_t x, y;
+  uint16_t w, h;
   unsigned long norm[ColLast];
   unsigned long sel[ColLast];
   Drawable drawable;
   GC gc;
   struct {
-    int ascent;
-    int descent;
-    int height;
+    uint16_t ascent;
+    uint16_t descent;
+    uint16_t height;
     XFontSet set;
     XFontStruct *xfont;
   } font;
@@ -132,9 +135,9 @@ struct Monitor {
   char ltsymbol[16];
   float mfact;
   int num;
-  int by;               /* bar geometry */
-  int mx, my, mw, mh;   /* screen size */
-  int wx, wy, ww, wh;   /* window area  */
+  int16_t by;               /* bar geometry */
+  int16_t mx, my, mw, mh;   /* screen size */
+  int16_t wx, wy, ww, wh;   /* window area  */
   unsigned int seltags;
   unsigned int sellt;
   unsigned int tagset[2];
@@ -159,7 +162,7 @@ typedef struct {
 
 /* function declarations */
 static void applyrules(Client *c);
-static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
+static int applysizehints(Client *c, int16_t *x, int16_t *y, uint16_t *w, uint16_t *h, int interact);
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
@@ -189,7 +192,7 @@ static int focusin(void *dummy, xcb_connection_t *dpy, xcb_focus_in_event_t *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static unsigned long getcolor(const char *colstr);
-static int getrootptr(int *x, int *y);
+static int getrootptr(int16_t *x, int16_t *y);
 // static long getstate(Window w);
 static int gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size);
 static void grabbuttons(Client *c, int focused);
@@ -208,7 +211,7 @@ static Client *nexttiled(Client *c);
 static Monitor *ptrtomon(int x, int y);
 static int propertynotify(void *dummy, xcb_connection_t *dpy, xcb_property_notify_event_t *e);
 static void quit(const Arg *arg);
-static void resize(Client *c, int x, int y, int w, int h, int interact);
+static void resize(Client *c, int16_t x, int16_t y, uint16_t w, uint16_t h, int interact);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
 static void run(void);
@@ -256,9 +259,9 @@ static xcb_screen_t *screen;  /* X display screen structure */
 /* X display screen geometry width, height */
 #define sw (screen->width_in_pixels)
 #define sh (screen->height_in_pixels)
-static int bh, blw = 0;      /* bar geometry */
+static uint16_t bh, blw = 0;      /* bar geometry */
 // static int (*xerrorxlib)(Display *, XErrorEvent *);
-static unsigned int numlockmask = 0;
+static uint16_t numlockmask = 0;
 static xcb_event_handlers_t evenths;
 static xcb_key_symbols_t *keysyms = 0;
 static xcb_atom_t wmatom[WMLast], netatom[NetLast];
@@ -319,7 +322,7 @@ applyrules(Client *c) {
 }
 
 int
-applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact) {
+applysizehints(Client *c, int16_t *x, int16_t *y, uint16_t *w, uint16_t *h, int interact) {
   Monitor *m = c->mon;
 
   /* set minimum possible */
@@ -359,9 +362,9 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact) {
     /* adjust for aspect limits */
     if(c->mina > 0 && c->maxa > 0) {
       if(c->maxa < (float)*w / *h)
-	*w = *h * c->maxa + 0.5;
+	*w = lroundf(*h * c->maxa);
       else if(c->mina < (float)*h / *w)
-	*h = *w * c->mina + 0.5;
+	*h = lroundf(*w * c->mina);
     }
     if(baseismin) { /* increment calculation requires this */
       *w -= c->basew;
@@ -688,7 +691,7 @@ dirtomon(int dir) {
 
 void
 drawbar(Monitor *m) {
-  int x;
+  int16_t x;
   unsigned int i, occ = 0, urg = 0;
   unsigned long *col;
   Client *c;
@@ -767,8 +770,10 @@ drawsquare(int filled, int empty, int invert, unsigned long col[ColLast]) {
 
 void
 drawtext(const char *text, unsigned long col[ColLast], int invert) {
-  char buf[256];
-  int i, x, y, h, len, olen;
+  uint8_t buf[256];
+  int i;
+  int16_t x, y;
+  int h, len, olen;
   XRectangle r = { dc.x, dc.y, dc.w, dc.h };
 
   XSetForeground(dpy, dc.gc, col[invert ? ColFG : ColBG]);
@@ -965,8 +970,8 @@ grabbuttons(Client *c, int focused) {
   updatenumlockmask();
   {
     unsigned int i, j;
-    unsigned int modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
-				 XCB_MOD_MASK_LOCK | numlockmask };
+    uint16_t modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
+			     XCB_MOD_MASK_LOCK | numlockmask };
     xcb_ungrab_button(xcb_dpy, XCB_GRAB_ANY, c->win, XCB_MOD_MASK_ANY);
     if(focused) {
       for(i = 0; i < LENGTH(buttons); i++)
@@ -990,7 +995,7 @@ grabkeys(void) {
   updatenumlockmask();
   {
     unsigned int i, j;
-    unsigned int modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
+    uint16_t modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
 				 numlockmask | XCB_MOD_MASK_LOCK };
     xcb_keycode_t *code;
 
@@ -1241,7 +1246,7 @@ monocle(Monitor *m) {
 
 void
 movemouse(const Arg *arg) {
-  int32_t x, y, ocx, ocy, nx, ny;
+  int16_t x, y, ocx, ocy, nx, ny;
   Client *c;
   Monitor *m;
   xcb_generic_event_t *ev;
@@ -1369,7 +1374,7 @@ quit(const Arg *arg) {
 }
 
 void
-resize(Client *c, int x, int y, int w, int h, int interact) {
+resize(Client *c, int16_t x, int16_t y, uint16_t w, uint16_t h, int interact) {
   if(applysizehints(c, &x, &y, &w, &h, interact)) {
     c->x = x; c->y = y; c->w = w; c->h = h;
     uint32_t geom[] = {x, y, w, h, c->bw};
@@ -1382,8 +1387,8 @@ resize(Client *c, int x, int y, int w, int h, int interact) {
 
 void
 resizemouse(const Arg *arg) {
-  int ocx, ocy;
-  int nw, nh;
+  int16_t ocx, ocy;
+  uint16_t nw, nh;
   Client *c;
   Monitor *m;
   xcb_generic_event_t *ev;
@@ -1597,8 +1602,8 @@ setmfact(const Arg *arg) {
 
   if(!arg || !selmon->lt[selmon->sellt]->arrange)
     return;
-  f = arg->f < 1.0 ? arg->f + selmon->mfact : arg->f - 1.0;
-  if(f < 0.1 || f > 0.9)
+  f = arg->f < 1.0f ? arg->f + selmon->mfact : arg->f - 1.0f;
+  if(f < 0.1f || f > 0.9f)
     return;
   selmon->mfact = f;
   arrange(selmon);
@@ -1770,7 +1775,8 @@ textnw(const char *text, unsigned int len) {
 
 void
 tile(Monitor *m) {
-  int x, y, h, w, mw;
+  int16_t x, y;
+  uint16_t h, w, mw;
   unsigned int i, n;
   Client *c;
 
@@ -1779,7 +1785,7 @@ tile(Monitor *m) {
     return;
   /* master */
   c = nexttiled(m->clients);
-  mw = m->mfact * m->ww;
+  mw = lroundf(m->mfact * m->ww);
   resize(c, m->wx, m->wy, (n == 1 ? m->ww : mw) - 2 * c->bw, m->wh - 2 * c->bw, false);
   if(--n == 0)
     return;
@@ -2153,7 +2159,7 @@ wintoclient(xcb_window_t w) {
 
 Monitor *
 wintomon(xcb_window_t w) {
-  int x, y;
+  int16_t x, y;
   Client *c;
   Monitor *m;
 
