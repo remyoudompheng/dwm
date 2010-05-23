@@ -1051,11 +1051,30 @@ initfont(const char *fontstr) {
     }
   }
   else {
-    if(!(dc.font.xfont = XLoadQueryFont(dpy, fontstr))
-       && !(dc.font.xfont = XLoadQueryFont(dpy, "fixed")))
-      die("error, cannot load font: '%s'\n", fontstr);
-    dc.font.ascent = dc.font.xfont->ascent;
-    dc.font.descent = dc.font.xfont->descent;
+    xcb_generic_error_t *error;
+    xcb_void_cookie_t cookie;
+    xcb_list_fonts_with_info_cookie_t cookie_lf;
+    dc.font.xfont = xcb_generate_id(xcb_dpy);
+    cookie = xcb_open_font_checked(xcb_dpy, dc.font.xfont, strlen(fontstr), fontstr);
+    cookie_lf = xcb_list_fonts_with_info(xcb_dpy, 1, strlen(fontstr), fontstr);
+    error = xcb_request_check(xcb_dpy, cookie);
+    if(error != NULL) {
+      xcb_flush(xcb_dpy);
+      cookie = xcb_open_font_checked(xcb_dpy, dc.font.xfont, strlen("fixed"), "fixed");
+      cookie_lf = xcb_list_fonts_with_info(xcb_dpy, 1, strlen("fixed"), "fixed");
+      error = xcb_request_check(xcb_dpy, cookie);
+      if(error != NULL)
+	die("error, cannot load font: '%s'\n", fontstr);
+    }
+    // Get info
+    xcb_list_fonts_with_info_reply_t *reply;
+    reply = xcb_list_fonts_with_info_reply(xcb_dpy, cookie_lf, NULL);
+    if (reply) {
+      dc.font.ascent = reply->font_ascent;
+      dc.font.descent = reply->font_descent;
+    }
+    else
+      die("could not load font info for '%s'\n", fontstr);
   }
   dc.font.height = dc.font.ascent + dc.font.descent;
 }
@@ -1797,13 +1816,26 @@ tagmon(const Arg *arg) {
 
 int
 textnw(const char *text, unsigned int len) {
-  XRectangle r;
-
   if(dc.font.set) {
+    XRectangle r;
     XmbTextExtents(dc.font.set, text, len, NULL, &r);
     return r.width;
   }
-  return XTextWidth(dc.font.xfont, text, len);
+
+  xcb_char2b_t *text2 = (xcb_char2b_t *)calloc(len, sizeof(xcb_char2b_t));
+  int i;
+  for(i = 0; i < len; i++)
+    { text2[i].byte1 = 0; text2[i].byte2 = text[i]; }
+  xcb_query_text_extents_cookie_t cookie;
+  xcb_query_text_extents_reply_t *reply;
+  cookie = xcb_query_text_extents(xcb_dpy, dc.font.xfont, len, text2);
+  reply = xcb_query_text_extents_reply(xcb_dpy, cookie, &xerr);
+  free(text2);
+  if (xerr) xcb_error_print();
+  assert(reply);
+  int32_t w = reply->overall_width;
+  free(reply);
+  return(w);
 }
 
 void
