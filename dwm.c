@@ -755,21 +755,21 @@ drawbars(void) {
 void
 drawsquare(int filled, int empty, int invert, uint32_t col[ColLast]) {
   int16_t x;
-  XGCValues gcv;
-  XRectangle r = { dc.x, dc.y, dc.w, dc.h };
+  uint32_t gcv;
+  xcb_rectangle_t r = { dc.x, dc.y, dc.w, dc.h };
 
-  gcv.foreground = col[invert ? ColBG : ColFG];
-  XChangeGC(dpy, dc.gc, GCForeground, &gcv);
+  gcv = col[invert ? ColBG : ColFG];
+  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FOREGROUND, &gcv);
   x = (dc.font.ascent + dc.font.descent + 2) / 4;
   r.x = dc.x + 1;
   r.y = dc.y + 1;
   if(filled) {
     r.width = r.height = x + 1;
-    XFillRectangles(dpy, dc.drawable, dc.gc, &r, 1);
+    xcb_poly_fill_rectangle(xcb_dpy, dc.drawable, dc.gc, 1, &r);
   }
   else if(empty) {
     r.width = r.height = x;
-    XDrawRectangles(dpy, dc.drawable, dc.gc, &r, 1);
+    xcb_poly_rectangle(xcb_dpy, dc.drawable, dc.gc, 1, &r);
   }
 }
 
@@ -779,10 +779,11 @@ drawtext(const char *text, uint32_t col[ColLast], int invert) {
   int i;
   int16_t x, y;
   uint16_t h; int len, olen;
-  XRectangle r = { dc.x, dc.y, dc.w, dc.h };
+  xcb_rectangle_t r = { dc.x, dc.y, dc.w, dc.h };
 
-  XSetForeground(dpy, dc.gc, col[invert ? ColFG : ColBG]);
-  XFillRectangles(dpy, dc.drawable, dc.gc, &r, 1);
+  uint32_t fg = col[invert ? ColFG : ColBG];
+  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FOREGROUND, &fg);
+  xcb_poly_fill_rectangle(xcb_dpy, dc.drawable, dc.gc, 1, &r);
   if(!text)
     return;
   olen = strlen(text);
