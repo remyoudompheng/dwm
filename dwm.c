@@ -109,14 +109,14 @@ typedef struct {
   uint16_t w, h;
   uint32_t norm[ColLast];
   uint32_t sel[ColLast];
-  Drawable drawable;
-  GC gc;
+  xcb_drawable_t drawable;
+  xcb_gcontext_t gc;
   struct {
     uint16_t ascent;
     uint16_t descent;
     uint16_t height;
     XFontSet set;
-    XFontStruct *xfont;
+    xcb_font_t xfont;
   } font;
 } DC; /* draw context */
 
@@ -490,11 +490,11 @@ cleanup(void) {
   if(dc.font.set)
     XFreeFontSet(dpy, dc.font.set);
   else
-    XFreeFont(dpy, dc.font.xfont);
+    xcb_close_font(xcb_dpy, dc.font.xfont);
   xcb_ungrab_key(xcb_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
   xcb_key_symbols_free(keysyms);
-  XFreePixmap(dpy, dc.drawable);
-  XFreeGC(dpy, dc.gc);
+  xcb_free_pixmap(xcb_dpy, dc.drawable);
+  xcb_free_gc(xcb_dpy, dc.gc);
   xcb_free_cursor(xcb_dpy, cursor[CurNormal]);
   xcb_free_cursor(xcb_dpy, cursor[CurResize]);
   xcb_free_cursor(xcb_dpy, cursor[CurMove]);
@@ -563,8 +563,9 @@ configurenotify(void *dummy, xcb_connection_t *Xdpy, xcb_configure_notify_event_
     sh = ev->height;
     if(updategeom()) {
       if(dc.drawable != 0)
-	XFreePixmap(dpy, dc.drawable);
-      dc.drawable = XCreatePixmap(dpy, root, sw, bh, screen->root_depth);
+	xcb_free_pixmap(xcb_dpy, dc.drawable);
+      dc.drawable = xcb_generate_id(xcb_dpy);
+      xcb_create_pixmap(xcb_dpy, screen->root_depth, dc.drawable, root, sw, bh);
       updatebars();
       for(m = mons; m; m = m->next) {
 	uint32_t geometry[] = {m->wx, m->by, m->ww, bh};
@@ -738,8 +739,9 @@ drawbar(Monitor *m) {
     else
       drawtext(NULL, dc.norm, false);
   }
-  XCopyArea(dpy, dc.drawable, m->barwin, dc.gc, 0, 0, m->ww, bh, 0, 0);
-  XSync(dpy, false);
+  xcb_copy_area(xcb_dpy, dc.drawable, m->barwin, dc.gc,
+		0, 0, 0, 0, m->ww, bh);
+  xcb_flush(xcb_dpy);
 }
 
 void
@@ -1707,11 +1709,17 @@ setup(void) {
   dc.sel[ColBorder] = getcolor(selbordercolor);
   dc.sel[ColBG] = getcolor(selbgcolor);
   dc.sel[ColFG] = getcolor(selfgcolor);
-  dc.drawable = XCreatePixmap(dpy, root, sw, bh, screen->root_depth);
-  dc.gc = XCreateGC(dpy, root, 0, NULL);
-  XSetLineAttributes(dpy, dc.gc, 1, LineSolid, CapButt, JoinMiter);
+  dc.drawable = xcb_generate_id(xcb_dpy);
+  xcb_create_pixmap(xcb_dpy, screen->root_depth, dc.drawable, root, sw, bh);
+  dc.gc = xcb_generate_id(xcb_dpy);
+  xcb_create_gc(xcb_dpy, dc.gc, root, 0, NULL);
+  uint32_t line_attrs[] = { 1, XCB_LINE_STYLE_SOLID, XCB_CAP_STYLE_BUTT,
+			    XCB_JOIN_STYLE_MITER };
+  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_LINE_WIDTH | XCB_GC_LINE_STYLE
+		| XCB_GC_CAP_STYLE | XCB_GC_JOIN_STYLE, line_attrs);
   if(!dc.font.set)
-    XSetFont(dpy, dc.gc, dc.font.xfont->fid);
+    xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FONT, &dc.font.xfont);
+  xcb_flush(xcb_dpy);
   /* init bars */
   updatebars();
   updatestatus();
