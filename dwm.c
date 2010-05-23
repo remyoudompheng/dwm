@@ -251,6 +251,7 @@ static Client *wintoclient(xcb_window_t w);
 static Monitor *wintomon(xcb_window_t w);
 static int xerror(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee);
 static int xerrordummy(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee);
+static void xcb_error_print(void);
 static void zoom(const Arg *arg);
 
 /* variables */
@@ -908,7 +909,7 @@ getcolor(const uint16_t rgb[]) {
   xcb_alloc_color_reply_t *reply =
     xcb_alloc_color_reply(xcb_dpy, cookie, &xerr);
 
-  if(xerr) { xerror(NULL, xcb_dpy, xerr); exit(1); }
+  if(xerr) { xcb_error_print(); exit(1); }
   assert(reply);
   uint32_t result = reply->pixel;
   free(reply);
@@ -1274,7 +1275,7 @@ movemouse(const Arg *arg) {
 			    XCB_WINDOW_NONE, cursor[CurMove], XCB_CURRENT_TIME);
   xcb_grab_pointer_reply_t *reply;
   reply = xcb_grab_pointer_reply(xcb_dpy, cookie, &xerr);
-  if (xerr) xerror(NULL, xcb_dpy, xerr);
+  if (xerr) xcb_error_print();
   assert(reply);
   if(reply->status != XCB_GRAB_STATUS_SUCCESS) {
     free(reply);
@@ -1418,7 +1419,7 @@ resizemouse(const Arg *arg) {
 			    XCB_WINDOW_NONE, cursor[CurResize], XCB_CURRENT_TIME);
   xcb_grab_pointer_reply_t *reply;
   reply = xcb_grab_pointer_reply(xcb_dpy, cookie, &xerr);
-  if (xerr) xerror(NULL, xcb_dpy, xerr);
+  if (xerr) xcb_error_print();
   assert(reply);
   if(reply->status != XCB_GRAB_STATUS_SUCCESS) {
     free(reply);
@@ -1432,8 +1433,6 @@ resizemouse(const Arg *arg) {
     // XCB does not provide an equivalent for XMaskEvent
     if (ev) free(ev);
     ev = xcb_wait_for_event(xcb_dpy);
-    fprintf(stderr, "resizemouse() received event %d (%s)\n", ev->response_type,
-	    xcb_event_get_label(ev->response_type));
     switch(ev->response_type) {
     case XCB_CONFIGURE_REQUEST:
     case XCB_EXPOSE:
@@ -1499,7 +1498,10 @@ run(void) {
   /* main event loop */
   xcb_flush(xcb_dpy);
   while(running && (ev = xcb_wait_for_event(xcb_dpy)))
+    {
     xcb_event_handle(&evenths, ev); /* call handler */
+    free(ev);
+    }
 }
 
 void
@@ -1507,11 +1509,11 @@ scan(void) {
   unsigned int i, num;
   xcb_window_t *wins = NULL;
 
-  xcb_query_tree_cookie_t cookie = xcb_query_tree_unchecked(xcb_dpy, root);
+  xcb_query_tree_cookie_t cookie = xcb_query_tree(xcb_dpy, root);
   xcb_query_tree_reply_t *qtree = NULL;
-
-  if(!(qtree = xcb_query_tree_reply(xcb_dpy, cookie, NULL)))
-    return;
+  qtree = xcb_query_tree_reply(xcb_dpy, cookie, &xerr);
+  if (xerr) xcb_error_print();
+  assert(qtree);
   num = qtree->children_len;
   wins = xcb_query_tree_children(qtree);
   int *is_transient = calloc(num, sizeof(int));
@@ -2042,7 +2044,7 @@ updatenumlockmask(void) {
   numlockmask = 0;
   cookie = xcb_get_modifier_mapping(xcb_dpy);
   reply = xcb_get_modifier_mapping_reply(xcb_dpy, cookie, &xerr);
-  if (xerr) xerror(NULL, xcb_dpy, xerr);
+  if (xerr) xcb_error_print();
   assert(reply);
   xcb_keycode_t *modmap = xcb_get_modifier_mapping_keycodes(reply);
   xcb_keycode_t *keylock = xcb_key_symbols_get_keycode(keysyms, XK_Num_Lock);
@@ -2219,6 +2221,15 @@ xerror(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee) {
 int
 xerrordummy(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee) {
   return 0;
+}
+
+inline void
+xcb_error_print(void)
+{
+  if (xerr)
+    fprintf(stderr, "dwm: X error: request %d (%s), error %d (%s)\n",
+	    xerr->major_code, xcb_event_get_request_label(xerr->major_code),
+	    xerr->error_code, xcb_event_get_error_label(xerr->error_code));
 }
 
 void
