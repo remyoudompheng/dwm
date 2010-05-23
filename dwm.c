@@ -34,7 +34,7 @@
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
 #include <X11/keysym.h>
-#include <X11/Xlib.h>
+// #include <X11/Xlib.h>
 #ifdef XINERAMA
 #include <xcb/xinerama.h>
 #endif /* XINERAMA */
@@ -115,7 +115,7 @@ typedef struct {
     uint16_t ascent;
     uint16_t descent;
     uint16_t height;
-    XFontSet set;
+    // XFontSet set;
     xcb_font_t xfont;
   } font;
 } DC; /* draw context */
@@ -269,7 +269,7 @@ static xcb_key_symbols_t *keysyms = 0;
 static xcb_atom_t wmatom[WMLast], netatom[NetLast];
 static int running = true;
 static xcb_cursor_t cursor[CurLast];
-static Display *dpy;
+// static Display *dpy;
 static xcb_connection_t *xcb_dpy;
 static xcb_generic_error_t *xerr;
 static DC dc;
@@ -487,10 +487,10 @@ cleanup(void) {
   for(m = mons; m; m = m->next)
     while(m->stack)
       unmanage(m->stack, false);
-  if(dc.font.set)
+  /*  if(dc.font.set)
     XFreeFontSet(dpy, dc.font.set);
-  else
-    xcb_close_font(xcb_dpy, dc.font.xfont);
+    else */
+  xcb_close_font(xcb_dpy, dc.font.xfont);
   xcb_ungrab_key(xcb_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
   xcb_key_symbols_free(keysyms);
   xcb_free_pixmap(xcb_dpy, dc.drawable);
@@ -501,8 +501,9 @@ cleanup(void) {
   while(mons)
     cleanupmon(mons);
   xcb_flush(xcb_dpy);
-  XSync(dpy, false);
-  XSetInputFocus(dpy, PointerRoot, RevertToPointerRoot, CurrentTime);
+  xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+		      XCB_INPUT_FOCUS_POINTER_ROOT, XCB_TIME_CURRENT_TIME);
+
 }
 
 void
@@ -926,8 +927,9 @@ int
 getrootptr(int16_t *x, int16_t *y) {
   xcb_query_pointer_cookie_t cookie;
   xcb_query_pointer_reply_t *reply;
-  cookie = xcb_query_pointer_unchecked(xcb_dpy, root);
-  reply = xcb_query_pointer_reply(xcb_dpy, cookie, NULL);
+  cookie = xcb_query_pointer(xcb_dpy, root);
+  reply = xcb_query_pointer_reply(xcb_dpy, cookie, &xerr);
+  if (xerr) xcb_error_print();
   assert(reply);
   int result = reply->same_screen;
   *x = reply->root_x;
@@ -1033,7 +1035,7 @@ initfont(const char *fontstr) {
   int i, n;
 
   missing = NULL;
-  dc.font.set = XCreateFontSet(dpy, fontstr, &missing, &n, &def);
+  /*  dc.font.set = XCreateFontSet(dpy, fontstr, &missing, &n, &def);
   if(missing) {
     while(n--)
       fprintf(stderr, "dwm: missing fontset: %s\n", missing[n]);
@@ -1053,7 +1055,7 @@ initfont(const char *fontstr) {
       xfonts++;
     }
   }
-  else {
+  else { */
     xcb_generic_error_t *error;
     xcb_void_cookie_t cookie;
     xcb_list_fonts_with_info_cookie_t cookie_lf;
@@ -1078,7 +1080,7 @@ initfont(const char *fontstr) {
     }
     else
       die("could not load font info for '%s'\n", fontstr);
-  }
+    // }
   dc.font.height = dc.font.ascent + dc.font.descent;
 }
 
@@ -1741,8 +1743,8 @@ setup(void) {
 			    XCB_JOIN_STYLE_MITER };
   xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_LINE_WIDTH | XCB_GC_LINE_STYLE
 		| XCB_GC_CAP_STYLE | XCB_GC_JOIN_STYLE, line_attrs);
-  if(!dc.font.set)
-    xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FONT, &dc.font.xfont);
+  //  if(!dc.font.set)
+  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FONT, &dc.font.xfont);
   xcb_flush(xcb_dpy);
   /* init bars */
   updatebars();
@@ -1793,8 +1795,8 @@ sigchld(int unused) {
 void
 spawn(const Arg *arg) {
   if(fork() == 0) {
-    if(dpy)
-      close(ConnectionNumber(dpy));
+    if(xcb_dpy)
+      close(xcb_get_file_descriptor(xcb_dpy));
     setsid();
     execvp(((char **)arg->v)[0], (char **)arg->v);
     fprintf(stderr, "dwm: execvp %s", ((char **)arg->v)[0]);
@@ -1820,11 +1822,11 @@ tagmon(const Arg *arg) {
 
 int
 textnw(const char *text, unsigned int len) {
-  if(dc.font.set) {
+  /*  if(dc.font.set) {
     XRectangle r;
     XmbTextExtents(dc.font.set, text, len, NULL, &r);
     return r.width;
-  }
+    } */
 
   xcb_char2b_t *text2 = (xcb_char2b_t *)calloc(len, sizeof(xcb_char2b_t));
   int i;
@@ -2308,17 +2310,17 @@ main(int argc, char *argv[]) {
     die("dwm-"VERSION", © 2006-2009 dwm engineers, see LICENSE for details\n");
   else if(argc != 1)
     die("usage: dwm [-v]\n");
-  if(!setlocale(LC_CTYPE, "") || !XSupportsLocale())
+  if(!setlocale(LC_CTYPE, "")) // || !XSupportsLocale())
     fputs("warning: no locale support\n", stderr);
-  if(!(dpy = XOpenDisplay(NULL)))
-    die("dwm: cannot open display\n");
+  // if(!(dpy = XOpenDisplay(NULL)))
+  //   die("dwm: cannot open display\n");
   if(!(xcb_dpy = xcb_connect(NULL,0)))
     die("dwm: cannot open XCB connection to display\n");
   setup();
   scan();
   run();
   cleanup();
-  XCloseDisplay(dpy);
+  // XCloseDisplay(dpy);
   xcb_disconnect(xcb_dpy);
   return 0;
 }
