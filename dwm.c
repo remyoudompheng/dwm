@@ -20,6 +20,7 @@
  *
  * To understand everything else, start reading main().
  */
+#include <assert.h>
 #include <errno.h>
 #include <locale.h>
 #include <stdarg.h>
@@ -900,21 +901,29 @@ focusstack(const Arg *arg) {
 
 unsigned long
 getcolor(const char *colstr) {
-  Colormap cmap = screen->default_colormap;
-  XColor color;
+  xcb_colormap_t cmap = screen->default_colormap;
+  xcb_alloc_named_color_cookie_t cookie;
+  cookie = xcb_alloc_named_color_unchecked(xcb_dpy, cmap, strlen(colstr), colstr);
+  xcb_alloc_named_color_reply_t *reply =
+    xcb_alloc_named_color_reply(xcb_dpy, cookie, NULL);
 
-  if(!XAllocNamedColor(dpy, cmap, colstr, &color, &color))
+  if(reply == NULL)
     die("error, cannot allocate color '%s'\n", colstr);
-  return color.pixel;
+  return reply->pixel;
 }
 
 int
-getrootptr(int *x, int *y) {
-  int di;
-  unsigned int dui;
-  Window dummy;
-
-  return XQueryPointer(dpy, root, &dummy, &dummy, x, y, &di, &di, &dui);
+getrootptr(int16_t *x, int16_t *y) {
+  xcb_query_pointer_cookie_t cookie;
+  xcb_query_pointer_reply_t *reply;
+  cookie = xcb_query_pointer_unchecked(xcb_dpy, root);
+  reply = xcb_query_pointer_reply(xcb_dpy, cookie, NULL);
+  assert(reply);
+  int result = reply->same_screen;
+  *x = reply->root_x;
+  *y = reply->root_y;
+  free(reply);
+  return result;
 }
 /*
 long
@@ -937,16 +946,12 @@ getstate(Window w) {
 */
 int
 gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
-  char **list = NULL;
-  int n;
-
-  xcb_get_property_cookie_t cookie =
-    xcb_get_text_property_unchecked(xcb_dpy, w, atom);
-
   if(!text || size == 0)
     return false;
   text[0] = '\0';
 
+  xcb_get_property_cookie_t cookie =
+    xcb_get_text_property_unchecked(xcb_dpy, w, atom);
   xcb_get_text_property_reply_t tp;
   if(!(xcb_get_text_property_reply(xcb_dpy, cookie, &tp, NULL)))
     return false;
@@ -955,6 +960,8 @@ gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
   if(tp.encoding == XCB_ATOM_STRING)
     strncpy(text, tp.name, size - 1);
   /*  else {
+  char **list = NULL;
+  int n;
     if(XmbTextPropertyToTextList(dpy, &tp, &list, &n) >= Success && n > 0 && *list) {
       strncpy(text, *list, size - 1);
       XFreeStringList(list);
@@ -1115,11 +1122,11 @@ killclient(const Arg *arg) {
       xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerrordummy, NULL);
     xcb_set_close_down_mode(xcb_dpy, XCB_CLOSE_DOWN_DESTROY_ALL);
     xcb_kill_client(xcb_dpy, selmon->sel->win);
-    xcb_flush(xcb_dpy);
     for (i = 0; i < 256; ++i)
       xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerror, NULL);
     xcb_ungrab_server(xcb_dpy);
   }
+  xcb_flush(xcb_dpy);
 }
 
 void
@@ -2021,16 +2028,22 @@ updategeom(void) {
 void
 updatenumlockmask(void) {
   unsigned int i, j;
-  XModifierKeymap *modmap;
+  xcb_get_modifier_mapping_cookie_t cookie;
+  xcb_get_modifier_mapping_reply_t *reply;
 
   numlockmask = 0;
-  modmap = XGetModifierMapping(dpy);
+  cookie = xcb_get_modifier_mapping_unchecked(xcb_dpy);
+  reply = xcb_get_modifier_mapping_reply(xcb_dpy, cookie, NULL);
+
+  assert(reply);
+  xcb_keycode_t *modmap = xcb_get_modifier_mapping_keycodes(reply);
+  xcb_keycode_t *keylock = xcb_key_symbols_get_keycode(keysyms, XK_Num_Lock);
   for(i = 0; i < 8; i++)
-    for(j = 0; j < modmap->max_keypermod; j++)
-      if(modmap->modifiermap[i * modmap->max_keypermod + j]
-	 == XKeysymToKeycode(dpy, XK_Num_Lock))
+    for(j = 0; j < reply->keycodes_per_modifier; j++)
+      if(modmap[i * reply->keycodes_per_modifier + j]
+	 == *keylock)
 	numlockmask = (1 << i);
-  XFreeModifiermap(modmap);
+  free(modmap); free(reply);
 }
 
 void
