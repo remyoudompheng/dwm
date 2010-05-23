@@ -184,8 +184,8 @@ static void die(const char *errstr, ...);
 static Monitor *dirtomon(int dir);
 static void drawbar(Monitor *m);
 static void drawbars(void);
-static void drawsquare(int filled, int empty, int invert, unsigned long col[ColLast]);
-static void drawtext(const char *text, unsigned long col[ColLast], int invert);
+static void drawsquare(int filled, int empty, int invert, uint32_t col[ColLast]);
+static void drawtext(const char *text, uint32_t col[ColLast], int invert);
 static int enternotify(void *dummy, xcb_connection_t *dpy, xcb_enter_notify_event_t *e);
 static int expose(void *dummy, xcb_connection_t *dpy, xcb_expose_event_t *e);
 static void focus(Client *c);
@@ -750,7 +750,7 @@ drawbars(void) {
 }
 
 void
-drawsquare(int filled, int empty, int invert, unsigned long col[ColLast]) {
+drawsquare(int filled, int empty, int invert, uint32_t col[ColLast]) {
   int16_t x;
   XGCValues gcv;
   XRectangle r = { dc.x, dc.y, dc.w, dc.h };
@@ -771,7 +771,7 @@ drawsquare(int filled, int empty, int invert, unsigned long col[ColLast]) {
 }
 
 void
-drawtext(const char *text, unsigned long col[ColLast], int invert) {
+drawtext(const char *text, uint32_t col[ColLast], int invert) {
   uint8_t buf[256];
   int i;
   int16_t x, y;
