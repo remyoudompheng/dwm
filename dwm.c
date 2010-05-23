@@ -2180,17 +2180,19 @@ updatestatus(void) {
 void
 updatewmhints(Client *c) {
   xcb_get_property_cookie_t cookie;
-  xcb_wm_hints_t       *hints = NULL;
+  xcb_wm_hints_t hints;
 
   cookie = xcb_get_wm_hints(xcb_dpy, c->win);
-  if(xcb_get_wm_hints_reply(xcb_dpy, cookie, hints, NULL)) {
-    if(c == selmon->sel && hints->flags & XCB_WM_HINT_X_URGENCY) {
-      hints->flags &= ~XCB_WM_HINT_X_URGENCY;
-      xcb_set_wm_hints(xcb_dpy, c->win, hints);
+  xcb_get_wm_hints_reply(xcb_dpy, cookie, &hints, &xerr);
+  if (xerr) {
+    xcb_error_print(); return; }
+  else {
+    if(c == selmon->sel && hints.flags & XCB_WM_HINT_X_URGENCY) {
+      hints.flags &= ~XCB_WM_HINT_X_URGENCY;
+      xcb_set_wm_hints(xcb_dpy, c->win, &hints);
     }
     else
-      c->isurgent = (hints->flags & XCB_WM_HINT_X_URGENCY) ? true : false;
-    free(hints);
+      c->isurgent = (hints.flags & XCB_WM_HINT_X_URGENCY) ? true : false;
   }
 }
 
