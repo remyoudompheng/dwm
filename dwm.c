@@ -107,8 +107,8 @@ struct Client {
 typedef struct {
   int16_t x, y;
   uint16_t w, h;
-  unsigned long norm[ColLast];
-  unsigned long sel[ColLast];
+  uint32_t norm[ColLast];
+  uint32_t sel[ColLast];
   Drawable drawable;
   GC gc;
   struct {
@@ -192,7 +192,7 @@ static void focus(Client *c);
 static int focusin(void *dummy, xcb_connection_t *dpy, xcb_focus_in_event_t *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
-static unsigned long getcolor(const char *colstr);
+static uint32_t getcolor(const uint16_t rgb[]);
 static int getrootptr(int16_t *x, int16_t *y);
 // static long getstate(Window w);
 static int gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size);
@@ -694,7 +694,7 @@ void
 drawbar(Monitor *m) {
   int16_t x;
   unsigned int i, occ = 0, urg = 0;
-  unsigned long *col;
+  uint32_t *col;
   Client *c;
 
   for(c = m->clients; c; c = c->next) {
@@ -899,17 +899,19 @@ focusstack(const Arg *arg) {
   }
 }
 
-unsigned long
-getcolor(const char *colstr) {
+uint32_t
+getcolor(const uint16_t rgb[]) {
   xcb_colormap_t cmap = screen->default_colormap;
-  xcb_alloc_named_color_cookie_t cookie;
-  cookie = xcb_alloc_named_color_unchecked(xcb_dpy, cmap, strlen(colstr), colstr);
-  xcb_alloc_named_color_reply_t *reply =
-    xcb_alloc_named_color_reply(xcb_dpy, cookie, NULL);
+  xcb_alloc_color_cookie_t cookie;
+  cookie = xcb_alloc_color(xcb_dpy, cmap, rgb[0], rgb[1], rgb[2]);
+  xcb_alloc_color_reply_t *reply =
+    xcb_alloc_color_reply(xcb_dpy, cookie, &xerr);
 
-  if(reply == NULL)
-    die("error, cannot allocate color '%s'\n", colstr);
-  return reply->pixel;
+  if(xerr) { xerror(NULL, xcb_dpy, xerr); exit(1); }
+  assert(reply);
+  uint32_t result = reply->pixel;
+  free(reply);
+  return result;
 }
 
 int

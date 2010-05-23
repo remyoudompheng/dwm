@@ -2,12 +2,12 @@
 
 /* appearance */
 static const char font[]            = "-*-*-medium-*-*-*-14-*-*-*-*-*-*-*";
-static const char normbordercolor[] = "#cccccc";
-static const char normbgcolor[]     = "#cccccc";
-static const char normfgcolor[]     = "#000000";
-static const char selbordercolor[]  = "#0066ff";
-static const char selbgcolor[]      = "#0066ff";
-static const char selfgcolor[]      = "#ffffff";
+static const uint16_t normbordercolor[] = { 0xcc00, 0xcc00, 0xcc00 };
+static const uint16_t normbgcolor[]     = { 0xcc00, 0xcc00, 0xcc00 };
+static const uint16_t normfgcolor[]     = { 0, 0, 0 };
+static const uint16_t selbordercolor[]  = { 0, 0x6600, 0xffff };
+static const uint16_t selbgcolor[]      = { 0, 0x6600, 0xffff };
+static const uint16_t selfgcolor[]      = { 0xffff, 0xffff, 0xffff };
 static const unsigned int borderpx  = 1;        /* border pixel of windows */
 static const unsigned int snap      = 32;       /* snap pixel */
 static const int showbar           = true;     /* false means no bar */
