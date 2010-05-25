@@ -301,9 +301,12 @@ applyrules(Client *c) {
   /* rule matching */
   c->isfloating = c->tags = 0;
 
-  cookie = xcb_get_wm_class_unchecked(xcb_dpy, c->win);
-
-  if(xcb_get_wm_class_reply(xcb_dpy, cookie, &ch, NULL)) {
+  cookie = xcb_get_wm_class(xcb_dpy, c->win);
+  int ok = xcb_get_wm_class_reply(xcb_dpy, cookie, &ch, &xerr);
+  if (!ok) {
+    if (xerr) xcb_error_print();
+  }
+  else {
     class = ch.class_name ? ch.class_name : broken;
     instance = ch.instance_name ? ch.instance_name : broken;
     for(i = 0; i < LENGTH(rules); i++) {
@@ -962,11 +965,14 @@ gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
     return false;
   text[0] = '\0';
 
-  xcb_get_property_cookie_t cookie =
-    xcb_get_text_property_unchecked(xcb_dpy, w, atom);
+  xcb_get_property_cookie_t cookie;
   xcb_get_text_property_reply_t tp;
-  if(!(xcb_get_text_property_reply(xcb_dpy, cookie, &tp, NULL)))
+  cookie = xcb_get_text_property(xcb_dpy, w, atom);
+  int ok = xcb_get_text_property_reply(xcb_dpy, cookie, &tp, &xerr);
+  if(!ok) {
+    if (xerr) xcb_error_print();
     return false;
+  }
   if(!tp.name_len)
     return false;
   if(tp.encoding == XCB_ATOM_STRING)
@@ -1176,9 +1182,10 @@ manage(xcb_window_t w,
 
   /* transience */
   xcb_get_property_cookie_t cookie =
-    xcb_get_wm_transient_for_unchecked(xcb_dpy, w);
-  if(xcb_get_wm_transient_for_reply(xcb_dpy, cookie, &trans, NULL))
-    t = wintoclient(trans);
+    xcb_get_wm_transient_for(xcb_dpy, w);
+  xcb_get_wm_transient_for_reply(xcb_dpy, cookie, &trans, &xerr);
+  if (xerr) xcb_error_print();
+  else t = wintoclient(trans);
   if(t) {
     c->mon = t->mon;
     c->tags = t->tags;
