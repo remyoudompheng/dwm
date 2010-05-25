@@ -971,12 +971,13 @@ gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
   cookie = xcb_get_text_property(xcb_dpy, w, atom);
   int ok = xcb_get_text_property_reply(xcb_dpy, cookie, &tp, &xerr);
   if(!ok) {
-    if (xerr) xcb_error_print();
+    xcb_error_print();
     return false;
   }
-  if(!tp.name_len)
+  if(!tp.name_len) {
     xcb_get_text_property_reply_wipe(&tp);
     return false;
+  }
   if(tp.encoding == XCB_ATOM_STRING)
     strncpy(text, tp.name, size - 1);
   /*  else {
