@@ -1492,12 +1492,12 @@ resizemouse(const Arg *arg) {
 	     && (abs(nw - c->w) > snap || abs(nh - c->h) > snap))
 	    togglefloating(NULL);
 	}
+      if(!selmon->lt[selmon->sellt]->arrange || c->isfloating)
+	resize(c, c->x, c->y, nw, nh, true);
       break;
     }
   } while(ev->response_type != XCB_BUTTON_RELEASE);
   if(ev) free(ev);
-  if(!selmon->lt[selmon->sellt]->arrange || c->isfloating)
-    resize(c, c->x, c->y, nw, nh, true);
   xcb_warp_pointer(xcb_dpy, XCB_NONE, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
   xcb_ungrab_pointer(xcb_dpy, XCB_CURRENT_TIME);
   xcb_flush(xcb_dpy);
