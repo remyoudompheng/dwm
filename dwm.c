@@ -199,7 +199,7 @@ static int gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int
 static void grabbuttons(Client *c, int focused);
 static void grabkeys(void);
 static void initfont(const char *fontstr);
-static int isprotodel(Client *c);
+static int isprotodel(const Client *c);
 static int keypress(void *dummy, xcb_connection_t *dpy, xcb_key_press_event_t *e);
 static void killclient(const Arg *arg);
 static void manage(xcb_window_t w, xcb_get_window_attributes_reply_t *wa,
@@ -329,7 +329,8 @@ applyrules(Client *c) {
 }
 
 int
-applysizehints(Client *c, int16_t *x, int16_t *y, uint16_t *w, uint16_t *h, int interact) {
+applysizehints(Client *c, int16_t *x, int16_t *y,
+	       uint16_t *w, uint16_t *h, const int interact) {
   Monitor *m = c->mon;
 
   /* set minimum possible */
@@ -1043,11 +1044,11 @@ grabkeys(void) {
 
 void
 initfont(const char *fontstr) {
-  char *def, **missing;
+  /* char *def, **missing;
   int i, n;
 
   missing = NULL;
-  /*  dc.font.set = XCreateFontSet(dpy, fontstr, &missing, &n, &def);
+  dc.font.set = XCreateFontSet(dpy, fontstr, &missing, &n, &def);
   if(missing) {
     while(n--)
       fprintf(stderr, "dwm: missing fontset: %s\n", missing[n]);
@@ -1098,7 +1099,7 @@ initfont(const char *fontstr) {
 }
 
 int
-isprotodel(Client *c) {
+isprotodel(const Client *c) {
   int i;
   int ret = false;
 
@@ -1430,7 +1431,7 @@ quit(const Arg *arg) {
 }
 
 void
-resize(Client *c, int16_t x, int16_t y, uint16_t w, uint16_t h, int interact) {
+resize(Client *c, int16_t x, int16_t y, uint16_t w, uint16_t h, const int interact) {
   if(applysizehints(c, &x, &y, &w, &h, interact)) {
     c->x = x; c->y = y; c->w = w; c->h = h;
     uint32_t geom[] = {x, y, w, h, c->bw};
