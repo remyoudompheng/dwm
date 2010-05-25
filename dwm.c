@@ -322,8 +322,9 @@ applyrules(Client *c) {
 	    c->mon = m;
 	}
     }
+    xcb_get_wm_class_reply_wipe(&ch);
   }
-  xcb_get_wm_class_reply_wipe(&ch);
+
   c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tagset[c->mon->seltags];
 }
 
@@ -974,6 +975,7 @@ gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
     return false;
   }
   if(!tp.name_len)
+    xcb_get_text_property_reply_wipe(&tp);
     return false;
   if(tp.encoding == XCB_ATOM_STRING)
     strncpy(text, tp.name, size - 1);
@@ -1027,10 +1029,13 @@ grabkeys(void) {
     xcb_ungrab_key(xcb_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
     for(i = 0; i < LENGTH(keys); i++) {
       if((code = xcb_key_symbols_get_keycode(keysyms, keys[i].keysym)))
-	for(j = 0; j < LENGTH(modifiers); j++)
-	  xcb_grab_key(xcb_dpy, true, root,
-		       keys[i].mod | modifiers[j], code[0],
-		       XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+	{
+	  for(j = 0; j < LENGTH(modifiers); j++)
+	    xcb_grab_key(xcb_dpy, true, root,
+			 keys[i].mod | modifiers[j], code[0],
+			 XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+	  free(code);
+	}
     }
   }
 }
@@ -1070,6 +1075,7 @@ initfont(const char *fontstr) {
     cookie_lf = xcb_list_fonts_with_info(xcb_dpy, 1, strlen(fontstr), fontstr);
     error = xcb_request_check(xcb_dpy, cookie);
     if(error != NULL) {
+      free(error);
       xcb_flush(xcb_dpy);
       cookie = xcb_open_font_checked(xcb_dpy, dc.font.xfont, strlen("fixed"), "fixed");
       cookie_lf = xcb_list_fonts_with_info(xcb_dpy, 1, strlen("fixed"), "fixed");
@@ -1354,6 +1360,7 @@ movemouse(const Arg *arg) {
       break;
     }
   } while(ev->response_type != XCB_BUTTON_RELEASE);
+  if (ev) free(ev);
   xcb_ungrab_pointer(xcb_dpy, XCB_CURRENT_TIME);
   xcb_flush(xcb_dpy);
   if((m = ptrtomon(c->x + c->w / 2, c->y + c->h / 2)) != selmon) {
@@ -1485,11 +1492,12 @@ resizemouse(const Arg *arg) {
 	     && (abs(nw - c->w) > snap || abs(nh - c->h) > snap))
 	    togglefloating(NULL);
 	}
-      if(!selmon->lt[selmon->sellt]->arrange || c->isfloating)
-	resize(c, c->x, c->y, nw, nh, true);
       break;
     }
   } while(ev->response_type != XCB_BUTTON_RELEASE);
+  if(ev) free(ev);
+  if(!selmon->lt[selmon->sellt]->arrange || c->isfloating)
+    resize(c, c->x, c->y, nw, nh, true);
   xcb_warp_pointer(xcb_dpy, XCB_NONE, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
   xcb_ungrab_pointer(xcb_dpy, XCB_CURRENT_TIME);
   xcb_flush(xcb_dpy);
@@ -1586,12 +1594,12 @@ scan(void) {
     xcb_get_wm_hints_reply(xcb_dpy, cookie_h[i], &hints, NULL);
     if (wa[i]->map_state == XCB_MAP_STATE_VIEWABLE || (hints.initial_state == XCB_WM_STATE_ICONIC))
       {
-	if (is_transient[i]) continue;
+	if (is_transient[i]) continue; // wa[i] is not freed now
 	if (!(wa[i]->override_redirect)) manage(wins[i], wa[i], cookie_g[i]);
-	free(wa[i]);
       }
     else
       { is_transient[i] = 0; }
+    free(wa[i]);
   }
 
   free(cookie_wa);
@@ -2011,6 +2019,8 @@ updategeom(void) {
   xcb_xinerama_is_active_reply_t *xinerama_r;
   xinerama_r = xcb_xinerama_is_active_reply(xcb_dpy, cookie, NULL);
   if(xinerama_r && xinerama_r->state) {
+    free(xinerama_r);
+
     int i, j, n, nn;
     Client *c;
     Monitor *m;
@@ -2115,6 +2125,7 @@ updatenumlockmask(void) {
       if(modmap[i * reply->keycodes_per_modifier + j]
 	 == *keylock)
 	numlockmask = (1 << i);
+  free(keylock);
   free(reply);
 }
 
@@ -2287,13 +2298,15 @@ xerrordummy(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee) {
   return 0;
 }
 
-inline void
+void
 xcb_error_print(void)
 {
-  if (xerr)
+  if (xerr) {
     fprintf(stderr, "dwm: X error: request %d (%s), error %d (%s)\n",
 	    xerr->major_code, xcb_event_get_request_label(xerr->major_code),
 	    xerr->error_code, xcb_event_get_error_label(xerr->error_code));
+    free(xerr);
+  }
 }
 
 void
