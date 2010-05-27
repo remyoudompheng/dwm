@@ -2338,7 +2338,8 @@ main(int argc, char *argv[]) {
     fputs("warning: no locale support\n", stderr);
   // if(!(dpy = XOpenDisplay(NULL)))
   //   die("dwm: cannot open display\n");
-  if(!(xcb_dpy = xcb_connect(NULL,0)))
+  xcb_dpy = xcb_connect(NULL,0);
+  if(xcb_connection_has_error(xcb_dpy))
     die("dwm: cannot open XCB connection to display\n");
   setup();
   scan();
