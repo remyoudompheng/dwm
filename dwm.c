@@ -981,14 +981,11 @@ gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
   }
   if(tp.encoding == XCB_ATOM_STRING)
     strncpy(text, tp.name, size - 1);
-  /*  else {
-  char **list = NULL;
-  int n;
-    if(XmbTextPropertyToTextList(dpy, &tp, &list, &n) >= Success && n > 0 && *list) {
-      strncpy(text, *list, size - 1);
-      XFreeStringList(list);
+  else // enconding may be UTF8_STRING, drop it
+    {
+      xcb_get_text_property_reply_wipe(&tp);
+      return false;
     }
-  } */
   text[size - 1] = '\0';
   xcb_get_text_property_reply_wipe(&tp);
   return true;
