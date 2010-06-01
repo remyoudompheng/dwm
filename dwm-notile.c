@@ -153,7 +153,6 @@ typedef struct {
 static void applyrules(Client *c);
 static int applysizehints(Client *c, int16_t *x, int16_t *y, uint16_t *w, uint16_t *h, int interact);
 static void arrange(Monitor *m);
-static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
 static int buttonpress(void *dummy, xcb_connection_t *dpy, xcb_button_press_event_t *e);
@@ -385,14 +384,9 @@ arrange(Monitor *m) {
 	 showhide(m->stack);
   focus(NULL);
   if(m)
-    arrangemon(m);
+    restack(m);
   else for(m = mons; m; m = m->next)
-	 arrangemon(m);
-}
-
-void
-arrangemon(Monitor *m) {
-  restack(m);
+	 restack(m);
 }
 
 void
