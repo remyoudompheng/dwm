@@ -32,13 +32,6 @@ static const Rule rules[] = {
 static const float mfact      = 0.55f; /* factor of master area size [0.05..0.95] */
 static const int resizehints = true; /* true means respect size hints in tiled resizals */
 
-static const Layout layouts[] = {
-	/* symbol     arrange function */
-	{ "[]=",      tile },    /* first entry is default */
-	{ "><>",      NULL },    /* no layout function means floating behavior */
-	{ "[M]",      monocle },
-};
-
 /* key definitions */
 #define MODKEY XCB_MOD_MASK_4
 #define TAGKEYS(KEY,TAG) \
@@ -72,16 +65,8 @@ static Key keys[] = {
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
 	{ XCB_MOD_MASK_1,               XK_Tab,    focusstack,     {.i = +1 } },
 	{ XCB_MOD_MASK_1|XCB_MOD_MASK_SHIFT, XK_Tab, focusstack,   {.i = -1 } },
-	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05f} },
-	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05f} },
-	{ MODKEY,                       XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_Tab,    view,           {0} },
 	{ MODKEY|XCB_MOD_MASK_SHIFT,    XK_c,      killclient,     {0} },
-	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[0]} },
-	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[1]} },
-	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
-	{ MODKEY,                       XK_space,  setlayout,      {0} },
-	{ MODKEY|XCB_MOD_MASK_SHIFT,    XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
 	{ MODKEY|XCB_MOD_MASK_SHIFT,    XK_0,      tag,            {.ui = ~0 } },
 	{ MODKEY,                       XK_comma,  focusmon,       {.i = -1 } },
@@ -106,12 +91,8 @@ static Key keys[] = {
 /* click can be ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
 static Button buttons[] = {
 	/* click                event mask      button          function        argument */
-	{ ClkLtSymbol,          0,              1,        setlayout,      {0} },
-	{ ClkLtSymbol,          0,              3,        setlayout,      {.v = &layouts[2]} },
-	{ ClkWinTitle,          0,              2,        zoom,           {0} },
 	{ ClkStatusText,        0,              2,        spawn,          {.v = termcmd } },
 	{ ClkClientWin,         MODKEY,         1,        movemouse,      {0} },
-	{ ClkClientWin,         MODKEY,         2,        togglefloating, {0} },
 	{ ClkClientWin,         MODKEY,         3,        resizemouse,    {0} },
 	{ ClkTagBar,            0,              1,        view,           {0} },
 	{ ClkTagBar,            0,              3,        toggleview,     {0} },

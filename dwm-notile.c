@@ -126,7 +126,10 @@ typedef struct {
 typedef struct {
   const char *symbol;
   // void (*arrange)(Monitor *);
+  void* dummy;
 } Layout;
+
+const static Layout floating_layout = { "><>", NULL };
 
 struct Monitor {
   char ltsymbol[16];
@@ -202,9 +205,7 @@ static void manage(xcb_window_t w, xcb_get_window_attributes_reply_t *wa,
 		   xcb_get_geometry_cookie_t cookie_g);
 static int mappingnotify(void *dummy, xcb_connection_t *dpy, xcb_mapping_notify_event_t *e);
 static int maprequest(void *dummy, xcb_connection_t *dpy, xcb_map_request_event_t *e);
-static void monocle(Monitor *m);
 static void movemouse(const Arg *arg);
-static Client *nexttiled(Client *c);
 static Monitor *ptrtomon(int x, int y);
 static int propertynotify(void *dummy, xcb_connection_t *dpy, xcb_property_notify_event_t *e);
 static void quit(const Arg *arg);
@@ -215,8 +216,6 @@ static void run(void);
 static void scan(void);
 static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, xcb_wm_state_t state);
-static void setlayout(const Arg *arg);
-static void setmfact(const Arg *arg);
 static void setup(void);
 static void showhide(Client *c);
 static void sigchld(int unused);
@@ -224,9 +223,7 @@ static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static int textnw(const char *text, unsigned int len);
-static void tile(Monitor *);
 static void togglebar(const Arg *arg);
-static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unfocus(Client *c);
@@ -248,7 +245,6 @@ static Monitor *wintomon(xcb_window_t w);
 static int xerror(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee);
 static int xerrordummy(void *dummy, xcb_connection_t *dpy, xcb_generic_error_t *ee);
 static void xcb_error_print(void);
-static void zoom(const Arg *arg);
 
 /* variables */
 static const char broken[] = "broken";
@@ -273,7 +269,7 @@ static Monitor *mons = NULL, *selmon = NULL;
 static xcb_window_t root;
 
 /* configuration, allows nested code to access above variables */
-#include "config.h"
+#include "config-notile.h"
 
 /* compile-time check if all tags fit into an unsigned int bit array. */
 struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
@@ -608,8 +604,6 @@ configurerequest(void *dummy, xcb_connection_t *dpy, xcb_configure_request_event
 	xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
       }
     }
-    else
-      configure(c);
   }
   else {
     uint32_t wc[] =
@@ -631,9 +625,9 @@ createmon(void) {
   m->mfact = mfact;
   m->showbar = showbar;
   m->topbar = topbar;
-  m->lt[0] = &layouts[0];
-  m->lt[1] = &layouts[1 % LENGTH(layouts)];
-  strncpy(m->ltsymbol, layouts[0].symbol, sizeof m->ltsymbol);
+  m->lt[0] = &floating_layout;
+  m->lt[1] = &floating_layout;
+  strncpy(m->ltsymbol, floating_layout.symbol, sizeof m->ltsymbol);
   return m;
 }
 
@@ -1276,20 +1270,6 @@ maprequest(void *dummy, xcb_connection_t *dpy, xcb_map_request_event_t *ev) {
 }
 
 void
-monocle(Monitor *m) {
-  unsigned int n = 0;
-  Client *c;
-
-  for(c = m->clients; c; c = c->next)
-    if(ISVISIBLE(c))
-      n++;
-  if(n > 0) /* override layout symbol */
-    snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
-  for(c = nexttiled(m->clients); c; c = nexttiled(c->next))
-    resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, false);
-}
-
-void
 movemouse(const Arg *arg) {
   int16_t x, y, ocx, ocy, nx, ny;
   Client *c;
@@ -1357,12 +1337,6 @@ movemouse(const Arg *arg) {
     selmon = m;
     focus(NULL);
   }
-}
-
-Client *
-nexttiled(Client *c) {
-  for(; c && (c->isfloating || !ISVISIBLE(c)); c = c->next);
-  return c;
 }
 
 Monitor *
@@ -1492,13 +1466,10 @@ resizemouse(const Arg *arg) {
 
 void
 restack(Monitor *m) {
-  Client *c;
-
   drawbar(m);
   if(!m->sel)
     return;
-  xcb_raise_window(xcb_dpy, m->sel->win);
-  
+  xcb_raise_window(xcb_dpy, m->sel->win);  
   xcb_flush(xcb_dpy);
 
   // while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
@@ -1610,32 +1581,6 @@ setclientstate(Client *c, xcb_wm_state_t state) {
   xcb_change_property(xcb_dpy, XCB_PROP_MODE_REPLACE, c->win,
 		      wmatom[WMState], wmatom[WMState], 32,
 		      2, data);
-}
-
-void
-setlayout(const Arg *arg) {
-  if(!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
-    selmon->sellt ^= 1;
-  if(arg && arg->v)
-    selmon->lt[selmon->sellt] = (Layout *)arg->v;
-  strncpy(selmon->ltsymbol, selmon->lt[selmon->sellt]->symbol, sizeof selmon->ltsymbol);
-  if(selmon->sel)
-    arrange(selmon);
-  else
-    drawbar(selmon);
-}
-
-/* arg > 1.0 will set mfact absolutly */
-void
-setmfact(const Arg *arg) {
-  float f;
-
-    return;
-  f = arg->f < 1.0f ? arg->f + selmon->mfact : arg->f - 1.0f;
-  if(f < 0.1f || f > 0.9f)
-    return;
-  selmon->mfact = f;
-  arrange(selmon);
 }
 
 void
@@ -1829,53 +1774,11 @@ textnw(const char *text, unsigned int len) {
 }
 
 void
-tile(Monitor *m) {
-  int16_t x, y;
-  uint16_t h, w, mw;
-  unsigned int i, n;
-  Client *c;
-
-  for(n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
-  if(n == 0)
-    return;
-  /* master */
-  c = nexttiled(m->clients);
-  mw = lroundf(m->mfact * m->ww);
-  resize(c, m->wx, m->wy, (n == 1 ? m->ww : mw) - 2 * c->bw, m->wh - 2 * c->bw, false);
-  if(--n == 0)
-    return;
-  /* tile stack */
-  x = (m->wx + mw > c->x + c->w) ? c->x + c->w + 2 * c->bw : m->wx + mw;
-  y = m->wy;
-  w = (m->wx + mw > c->x + c->w) ? m->wx + m->ww - x : m->ww - mw;
-  h = m->wh / n;
-  if(h < bh)
-    h = m->wh;
-  for(i = 0, c = nexttiled(c->next); c; c = nexttiled(c->next), i++) {
-    resize(c, x, y, w - 2 * c->bw, /* remainder */ ((i + 1 == n)
-						    ? m->wy + m->wh - y - 2 * c->bw : h - 2 * c->bw), false);
-    if(h != m->wh)
-      y = c->y + HEIGHT(c);
-  }
-}
-
-void
 togglebar(const Arg *arg) {
   selmon->showbar = !selmon->showbar;
   updatebarpos(selmon);
   uint32_t geom[] = {selmon->wx, selmon->by, selmon->ww, bh};
   xcb_configure_window(xcb_dpy, selmon->barwin, XCB_CONFIG_MOVERESIZE, geom);
-  arrange(selmon);
-}
-
-void
-togglefloating(const Arg *arg) {
-  if(!selmon->sel)
-    return;
-  selmon->sel->isfloating = !selmon->sel->isfloating || selmon->sel->isfixed;
-  if(selmon->sel->isfloating)
-    resize(selmon->sel, selmon->sel->x, selmon->sel->y,
-	   selmon->sel->w, selmon->sel->h, false);
   arrange(selmon);
 }
 
@@ -2276,23 +2179,6 @@ xcb_error_print(void)
 	    xerr->error_code, xcb_event_get_error_label(xerr->error_code));
     free(xerr);
   }
-}
-
-void
-zoom(const Arg *arg) {
-  Client *c = selmon->sel;
-
-  if(!selmon->lt[selmon->sellt]->arrange
-     || selmon->lt[selmon->sellt]->arrange == monocle
-     || (selmon->sel && selmon->sel->isfloating))
-    return;
-  if(c == nexttiled(selmon->clients))
-    if(!c || !(c = nexttiled(c->next)))
-      return;
-  detach(c);
-  attach(c);
-  focus(c);
-  arrange(c->mon);
 }
 
 int
