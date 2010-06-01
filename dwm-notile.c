@@ -64,7 +64,7 @@ enum { CurNormal, CurResize, CurMove, CurLast };        /* cursor */
 enum { ColBorder, ColFG, ColBG, ColLast };              /* color */
 enum { NetSupported, NetWMName, NetLast };              /* EWMH atoms */
 enum { WMProtocols, WMDelete, WMState, WMLast };        /* default atoms */
-enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
+enum { ClkTagBar, ClkStatusText, ClkWinTitle,
        ClkClientWin, ClkRootWin, ClkLast };             /* clicks */
 
 typedef union {
@@ -123,17 +123,7 @@ typedef struct {
   const Arg arg;
 } Key;
 
-typedef struct {
-  const char *symbol;
-  // void (*arrange)(Monitor *);
-  void* dummy;
-} Layout;
-
-const static Layout floating_layout = { "><>", NULL };
-
 struct Monitor {
-  char ltsymbol[16];
-  float mfact;
   int num;
   int16_t by;               /* bar geometry */
   int16_t mx, my, mw, mh;   /* screen size */
@@ -148,7 +138,6 @@ struct Monitor {
   Client *stack;
   Monitor *next;
   xcb_window_t barwin;
-  const Layout *lt[2];
 };
 
 typedef struct {
@@ -253,7 +242,7 @@ static xcb_screen_t *screen;  /* X display screen structure */
 /* X display screen geometry width, height */
 #define sw (screen->width_in_pixels)
 #define sh (screen->height_in_pixels)
-static uint16_t bh, blw = 0;      /* bar geometry */
+static uint16_t bh = 0;      /* bar geometry */
 // static int (*xerrorxlib)(Display *, XErrorEvent *);
 static uint16_t numlockmask = 0;
 static xcb_event_handlers_t evenths;
@@ -403,7 +392,6 @@ arrange(Monitor *m) {
 
 void
 arrangemon(Monitor *m) {
-  strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof m->ltsymbol);
   restack(m);
 }
 
@@ -442,8 +430,6 @@ buttonpress(void *dummy, xcb_connection_t *dpy, xcb_button_press_event_t *ev) {
       click = ClkTagBar;
       arg.ui = 1 << i;
     }
-    else if(ev->event_x < x + blw)
-      click = ClkLtSymbol;
     else if(ev->event_x > selmon->wx + selmon->ww - TEXTW(stext))
       click = ClkStatusText;
     else
@@ -474,11 +460,9 @@ checkotherwm(void) {
 void
 cleanup(void) {
   Arg a = {.ui = ~0};
-  Layout foo = { "", NULL };
   Monitor *m;
 
   view(&a);
-  selmon->lt[selmon->sellt] = &foo;
   for(m = mons; m; m = m->next)
     while(m->stack)
       unmanage(m->stack, false);
@@ -622,12 +606,8 @@ createmon(void) {
   if(!(m = (Monitor *)calloc(1, sizeof(Monitor))))
     die("fatal: could not malloc() %u bytes\n", sizeof(Monitor));
   m->tagset[0] = m->tagset[1] = 1;
-  m->mfact = mfact;
   m->showbar = showbar;
   m->topbar = topbar;
-  m->lt[0] = &floating_layout;
-  m->lt[1] = &floating_layout;
-  strncpy(m->ltsymbol, floating_layout.symbol, sizeof m->ltsymbol);
   return m;
 }
 
@@ -708,9 +688,6 @@ drawbar(Monitor *m) {
 	       occ & 1 << i, urg & 1 << i, col);
     dc.x += dc.w;
   }
-  dc.w = blw = TEXTW(m->ltsymbol);
-  drawtext(m->ltsymbol, dc.norm, false);
-  dc.x += dc.w;
   x = dc.x;
   if(m == selmon) { /* status is only drawn on selected monitor */
     dc.w = TEXTW(stext);
