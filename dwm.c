@@ -21,20 +21,16 @@
  * To understand everything else, start reading main().
  */
 #include <assert.h>
-#include <errno.h>
 #include <locale.h>
 #include <stdarg.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <X11/cursorfont.h>
 #include <X11/keysym.h>
-// #include <X11/Xlib.h>
 #ifdef XINERAMA
 #include <xcb/xinerama.h>
 #endif /* XINERAMA */
@@ -304,7 +300,7 @@ applyrules(Client *c) {
   cookie = xcb_get_wm_class(xcb_dpy, c->win);
   int ok = xcb_get_wm_class_reply(xcb_dpy, cookie, &ch, &xerr);
   if (!ok) {
-    if (xerr) xcb_error_print();
+    xcb_error_print();
   }
   else {
     class = ch.class_name ? ch.class_name : broken;
@@ -986,7 +982,7 @@ gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
       xcb_get_text_property_reply_wipe(&tp);
       return false;
     }
-  text[size - 1] = '\0';
+  text[tp.name_len] = '\0';
   xcb_get_text_property_reply_wipe(&tp);
   return true;
 }
