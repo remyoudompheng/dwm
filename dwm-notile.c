@@ -351,8 +351,8 @@ applysizehints(Client *c, int16_t *x, int16_t *y,
     if(c->mina > 0 && c->maxa > 0) {
       if(c->maxa < (float)*w / *h)
 	*w = lroundf(*h * c->maxa);
-      else if(c->mina < (float)*h / *w)
-	*h = lroundf(*w * c->mina);
+      else if(c->mina > (float)*w / *h)
+	*h = lroundf((float)*w / c->mina);
     }
     if(baseismin) { /* increment calculation requires this */
       *w -= c->basew;
@@ -1388,6 +1388,7 @@ resizemouse(const Arg *arg) {
   restack(selmon);
   ocx = c->x;
   ocy = c->y;
+  nw = c->w; nh = c->h;
   // Grab pointer
   xcb_grab_pointer_cookie_t cookie;
   cookie = xcb_grab_pointer(xcb_dpy, false, root, MOUSEMASK,

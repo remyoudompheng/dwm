@@ -28,8 +28,6 @@ static const Rule rules[] = {
 	{ "Epiphany", NULL,       NULL,       1U << 8,       false,       -1 },
 };
 
-/* layout(s) */
-static const float mfact      = 0.55f; /* factor of master area size [0.05..0.95] */
 static const int resizehints = true; /* true means respect size hints in tiled resizals */
 
 /* key definitions */
