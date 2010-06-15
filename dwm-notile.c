@@ -250,7 +250,7 @@ static xcb_atom_t wmatom[WMLast], netatom[NetLast];
 static int running = true;
 static xcb_cursor_t cursor[CurLast];
 // static Display *dpy;
-static xcb_connection_t *xcb_dpy;
+static xcb_connection_t *dpy;
 static xcb_generic_error_t *xerr;
 static DC dc;
 static Monitor *mons = NULL, *selmon = NULL;
@@ -281,8 +281,8 @@ applyrules(Client *c) {
   /* rule matching */
   c->isfloating = c->tags = 0;
 
-  cookie = xcb_get_wm_class(xcb_dpy, c->win);
-  int ok = xcb_get_wm_class_reply(xcb_dpy, cookie, &ch, &xerr);
+  cookie = xcb_get_wm_class(dpy, c->win);
+  int ok = xcb_get_wm_class_reply(dpy, cookie, &ch, &xerr);
   if (!ok) {
     xcb_error_print();
   }
@@ -445,8 +445,8 @@ checkotherwm(void) {
   /* this causes an error if some other window manager is running */
   uint32_t mask = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT;
   xcb_void_cookie_t cookie = xcb_change_window_attributes_checked
-    (xcb_dpy, root, XCB_CW_EVENT_MASK, &mask);
-  xerr = xcb_request_check(xcb_dpy, cookie);
+    (dpy, root, XCB_CW_EVENT_MASK, &mask);
+  xerr = xcb_request_check(dpy, cookie);
   if(xerr)
     die("dwm: another window manager is already running\n");
 }
@@ -463,18 +463,18 @@ cleanup(void) {
   /*  if(dc.font.set)
     XFreeFontSet(dpy, dc.font.set);
     else */
-  xcb_close_font(xcb_dpy, dc.font.xfont);
-  xcb_ungrab_key(xcb_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
+  xcb_close_font(dpy, dc.font.xfont);
+  xcb_ungrab_key(dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
   xcb_key_symbols_free(keysyms);
-  xcb_free_pixmap(xcb_dpy, dc.drawable);
-  xcb_free_gc(xcb_dpy, dc.gc);
-  xcb_free_cursor(xcb_dpy, cursor[CurNormal]);
-  xcb_free_cursor(xcb_dpy, cursor[CurResize]);
-  xcb_free_cursor(xcb_dpy, cursor[CurMove]);
+  xcb_free_pixmap(dpy, dc.drawable);
+  xcb_free_gc(dpy, dc.gc);
+  xcb_free_cursor(dpy, cursor[CurNormal]);
+  xcb_free_cursor(dpy, cursor[CurResize]);
+  xcb_free_cursor(dpy, cursor[CurMove]);
   while(mons)
     cleanupmon(mons);
-  xcb_flush(xcb_dpy);
-  xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+  xcb_flush(dpy);
+  xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
 		      XCB_INPUT_FOCUS_POINTER_ROOT, XCB_TIME_CURRENT_TIME);
 
 }
@@ -489,8 +489,8 @@ cleanupmon(Monitor *mon) {
     for(m = mons; m && m->next != mon; m = m->next);
     m->next = mon->next;
   }
-  xcb_unmap_window(xcb_dpy, mon->barwin);
-  xcb_destroy_window(xcb_dpy, mon->barwin);
+  xcb_unmap_window(dpy, mon->barwin);
+  xcb_destroy_window(dpy, mon->barwin);
   free(mon);
 }
 
@@ -500,13 +500,13 @@ clearurgent(Client *c) {
   xcb_wm_hints_t       *hints = NULL;
 
   c->isurgent = false;
-  cookie = xcb_get_wm_hints(xcb_dpy, c->win);
-  if(!(xcb_get_wm_hints_reply(xcb_dpy, cookie, hints, NULL)))
+  cookie = xcb_get_wm_hints(dpy, c->win);
+  if(!(xcb_get_wm_hints_reply(dpy, cookie, hints, NULL)))
     return;
   if (hints)
     {
       hints->flags &= ~XCB_WM_HINT_X_URGENCY;
-      xcb_set_wm_hints(xcb_dpy, c->win, hints);
+      xcb_set_wm_hints(dpy, c->win, hints);
       free(hints);
     }
 }
@@ -525,7 +525,7 @@ configure(Client *c) {
   ce.border_width = c->bw;
   ce.above_sibling = XCB_WINDOW_NONE;
   ce.override_redirect = false;
-  xcb_send_event(xcb_dpy, 0, c->win, XCB_EVENT_MASK_STRUCTURE_NOTIFY, (const char*)&ce);
+  xcb_send_event(dpy, 0, c->win, XCB_EVENT_MASK_STRUCTURE_NOTIFY, (const char*)&ce);
 }
 
 int
@@ -537,13 +537,13 @@ configurenotify(void *dummy, xcb_connection_t *Xdpy, xcb_configure_notify_event_
     sh = ev->height;
     if(updategeom()) {
       if(dc.drawable != 0)
-	xcb_free_pixmap(xcb_dpy, dc.drawable);
-      dc.drawable = xcb_generate_id(xcb_dpy);
-      xcb_create_pixmap(xcb_dpy, screen->root_depth, dc.drawable, root, sw, bh);
+	xcb_free_pixmap(dpy, dc.drawable);
+      dc.drawable = xcb_generate_id(dpy);
+      xcb_create_pixmap(dpy, screen->root_depth, dc.drawable, root, sw, bh);
       updatebars();
       for(m = mons; m; m = m->next) {
 	uint32_t geometry[] = {m->wx, m->by, m->ww, bh};
-	xcb_configure_window(xcb_dpy, m->barwin, XCB_CONFIG_MOVERESIZE, geometry);
+	xcb_configure_window(dpy, m->barwin, XCB_CONFIG_MOVERESIZE, geometry);
       }
       arrange(NULL);
     }
@@ -579,7 +579,7 @@ configurerequest(void *dummy, xcb_connection_t *dpy, xcb_configure_request_event
 	configure(c);
       if(ISVISIBLE(c)) {
 	uint32_t geom[] = { c->x, c->y, c->w, c->h };
-	xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
+	xcb_configure_window(dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
       }
     }
   }
@@ -587,9 +587,9 @@ configurerequest(void *dummy, xcb_connection_t *dpy, xcb_configure_request_event
     uint32_t wc[] =
       { ev->x, ev->y, ev->width, ev->height,
 	ev->border_width, ev->sibling, ev->stack_mode };
-    xcb_configure_window(xcb_dpy, ev->window, ev->value_mask, wc);
+    xcb_configure_window(dpy, ev->window, ev->value_mask, wc);
   }
-  xcb_flush(xcb_dpy);
+  xcb_flush(dpy);
   return 1;
 }
 
@@ -704,9 +704,9 @@ drawbar(Monitor *m) {
     else
       drawtext(NULL, dc.norm, false);
   }
-  xcb_copy_area(xcb_dpy, dc.drawable, m->barwin, dc.gc,
+  xcb_copy_area(dpy, dc.drawable, m->barwin, dc.gc,
 		0, 0, 0, 0, m->ww, bh);
-  xcb_flush(xcb_dpy);
+  xcb_flush(dpy);
 }
 
 void
@@ -724,17 +724,17 @@ drawsquare(int filled, int empty, int invert, uint32_t col[ColLast]) {
   xcb_rectangle_t r = { dc.x, dc.y, dc.w, dc.h };
 
   gcv = col[invert ? ColBG : ColFG];
-  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FOREGROUND, &gcv);
+  xcb_change_gc(dpy, dc.gc, XCB_GC_FOREGROUND, &gcv);
   x = (dc.font.ascent + dc.font.descent + 2) / 4;
   r.x = dc.x + 1;
   r.y = dc.y + 1;
   if(filled) {
     r.width = r.height = x + 1;
-    xcb_poly_fill_rectangle(xcb_dpy, dc.drawable, dc.gc, 1, &r);
+    xcb_poly_fill_rectangle(dpy, dc.drawable, dc.gc, 1, &r);
   }
   else if(empty) {
     r.width = r.height = x;
-    xcb_poly_rectangle(xcb_dpy, dc.drawable, dc.gc, 1, &r);
+    xcb_poly_rectangle(dpy, dc.drawable, dc.gc, 1, &r);
   }
 }
 
@@ -747,8 +747,8 @@ drawtext(const char *text, uint32_t col[ColLast], int invert) {
   xcb_rectangle_t r = { dc.x, dc.y, dc.w, dc.h };
 
   uint32_t fg = col[invert ? ColFG : ColBG];
-  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FOREGROUND, &fg);
-  xcb_poly_fill_rectangle(xcb_dpy, dc.drawable, dc.gc, 1, &r);
+  xcb_change_gc(dpy, dc.gc, XCB_GC_FOREGROUND, &fg);
+  xcb_poly_fill_rectangle(dpy, dc.drawable, dc.gc, 1, &r);
   if(!text)
     return;
   olen = strlen(text);
@@ -764,11 +764,11 @@ drawtext(const char *text, uint32_t col[ColLast], int invert) {
     for(i = len; i && i > len - 3; buf[--i] = '.');
   uint32_t textcol[] = { col[invert ? ColBG : ColFG] ,
 			 col[invert ? ColFG : ColBG] };
-  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, textcol);
+  xcb_change_gc(dpy, dc.gc, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, textcol);
   //  if(dc.font.set)
   //  XmbDrawString(dpy, dc.drawable, dc.font.set, dc.gc_xlib, x, y, buf, len);
   //else
-  xcb_image_text_8(xcb_dpy, len, dc.drawable, dc.gc, x, y, buf);
+  xcb_image_text_8(dpy, len, dc.drawable, dc.gc, x, y, buf);
 }
 
 int
@@ -814,12 +814,12 @@ focus(Client *c) {
     attachstack(c);
     grabbuttons(c, true);
     uint32_t border_color[] = { dc.sel[ColBorder] };
-    xcb_change_window_attributes(xcb_dpy, c->win, XCB_CW_BORDER_PIXEL, border_color);
-    xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+    xcb_change_window_attributes(dpy, c->win, XCB_CW_BORDER_PIXEL, border_color);
+    xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
 			c->win, XCB_TIME_CURRENT_TIME);
   }
   else
-    xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+    xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
 			root, XCB_TIME_CURRENT_TIME);
   selmon->sel = c;
   drawbars();
@@ -829,7 +829,7 @@ int
 focusin(void *dummy, xcb_connection_t *dpy, xcb_focus_in_event_t *ev) {
   /* there are some broken focus acquiring clients */
   if(selmon->sel && ev->event != selmon->sel->win)
-    xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+    xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
 			selmon->sel->win, XCB_TIME_CURRENT_TIME);
   return 1;
 }
@@ -876,9 +876,9 @@ uint32_t
 getcolor(const uint16_t rgb[]) {
   xcb_colormap_t cmap = screen->default_colormap;
   xcb_alloc_color_cookie_t cookie;
-  cookie = xcb_alloc_color(xcb_dpy, cmap, rgb[0], rgb[1], rgb[2]);
+  cookie = xcb_alloc_color(dpy, cmap, rgb[0], rgb[1], rgb[2]);
   xcb_alloc_color_reply_t *reply =
-    xcb_alloc_color_reply(xcb_dpy, cookie, &xerr);
+    xcb_alloc_color_reply(dpy, cookie, &xerr);
 
   if(xerr) { xcb_error_print(); exit(1); }
   assert(reply);
@@ -891,8 +891,8 @@ int
 getrootptr(int16_t *x, int16_t *y) {
   xcb_query_pointer_cookie_t cookie;
   xcb_query_pointer_reply_t *reply;
-  cookie = xcb_query_pointer(xcb_dpy, root);
-  reply = xcb_query_pointer_reply(xcb_dpy, cookie, &xerr);
+  cookie = xcb_query_pointer(dpy, root);
+  reply = xcb_query_pointer_reply(dpy, cookie, &xerr);
   if (xerr) xcb_error_print();
   assert(reply);
   int result = reply->same_screen;
@@ -928,8 +928,8 @@ gettextprop(xcb_window_t w, xcb_atom_t atom, char *text, unsigned int size) {
 
   xcb_get_property_cookie_t cookie;
   xcb_get_text_property_reply_t tp;
-  cookie = xcb_get_text_property(xcb_dpy, w, atom);
-  int ok = xcb_get_text_property_reply(xcb_dpy, cookie, &tp, &xerr);
+  cookie = xcb_get_text_property(dpy, w, atom);
+  int ok = xcb_get_text_property_reply(dpy, cookie, &tp, &xerr);
   if(!ok) {
     xcb_error_print();
     return false;
@@ -957,18 +957,18 @@ grabbuttons(Client *c, int focused) {
     unsigned int i, j;
     uint16_t modifiers[] = { 0, XCB_MOD_MASK_LOCK, numlockmask,
 			     XCB_MOD_MASK_LOCK | numlockmask };
-    xcb_ungrab_button(xcb_dpy, XCB_GRAB_ANY, c->win, XCB_MOD_MASK_ANY);
+    xcb_ungrab_button(dpy, XCB_GRAB_ANY, c->win, XCB_MOD_MASK_ANY);
     if(focused) {
       for(i = 0; i < LENGTH(buttons); i++)
 	if(buttons[i].click == ClkClientWin)
 	  for(j = 0; j < LENGTH(modifiers); j++)
-	    xcb_grab_button(xcb_dpy, 0, c->win,
+	    xcb_grab_button(dpy, 0, c->win,
 			    BUTTONMASK, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
 			    XCB_WINDOW_NONE, XCB_CURSOR_NONE,
 			    buttons[i].button, buttons[i].mask | modifiers[j]);
     }
     else
-      xcb_grab_button(xcb_dpy, 0, c->win,
+      xcb_grab_button(dpy, 0, c->win,
 		      BUTTONMASK, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
 		      XCB_WINDOW_NONE, XCB_CURSOR_NONE,
 		      XCB_GRAB_ANY, XCB_BUTTON_MASK_ANY);
@@ -984,12 +984,12 @@ grabkeys(void) {
 				 numlockmask | XCB_MOD_MASK_LOCK };
     xcb_keycode_t *code;
 
-    xcb_ungrab_key(xcb_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
+    xcb_ungrab_key(dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
     for(i = 0; i < LENGTH(keys); i++) {
       if((code = xcb_key_symbols_get_keycode(keysyms, keys[i].keysym)))
 	{
 	  for(j = 0; j < LENGTH(modifiers); j++)
-	    xcb_grab_key(xcb_dpy, true, root,
+	    xcb_grab_key(dpy, true, root,
 			 keys[i].mod | modifiers[j], code[0],
 			 XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
 	  free(code);
@@ -1028,22 +1028,22 @@ initfont(const char *fontstr) {
     xcb_generic_error_t *error;
     xcb_void_cookie_t cookie;
     xcb_list_fonts_with_info_cookie_t cookie_lf;
-    dc.font.xfont = xcb_generate_id(xcb_dpy);
-    cookie = xcb_open_font_checked(xcb_dpy, dc.font.xfont, strlen(fontstr), fontstr);
-    cookie_lf = xcb_list_fonts_with_info(xcb_dpy, 1, strlen(fontstr), fontstr);
-    error = xcb_request_check(xcb_dpy, cookie);
+    dc.font.xfont = xcb_generate_id(dpy);
+    cookie = xcb_open_font_checked(dpy, dc.font.xfont, strlen(fontstr), fontstr);
+    cookie_lf = xcb_list_fonts_with_info(dpy, 1, strlen(fontstr), fontstr);
+    error = xcb_request_check(dpy, cookie);
     if(error != NULL) {
       free(error);
-      xcb_flush(xcb_dpy);
-      cookie = xcb_open_font_checked(xcb_dpy, dc.font.xfont, strlen("fixed"), "fixed");
-      cookie_lf = xcb_list_fonts_with_info(xcb_dpy, 1, strlen("fixed"), "fixed");
-      error = xcb_request_check(xcb_dpy, cookie);
+      xcb_flush(dpy);
+      cookie = xcb_open_font_checked(dpy, dc.font.xfont, strlen("fixed"), "fixed");
+      cookie_lf = xcb_list_fonts_with_info(dpy, 1, strlen("fixed"), "fixed");
+      error = xcb_request_check(dpy, cookie);
       if(error != NULL)
 	die("error, cannot load font: '%s'\n", fontstr);
     }
     // Get info
     xcb_list_fonts_with_info_reply_t *reply;
-    reply = xcb_list_fonts_with_info_reply(xcb_dpy, cookie_lf, NULL);
+    reply = xcb_list_fonts_with_info_reply(dpy, cookie_lf, NULL);
     if (reply) {
       dc.font.ascent = reply->font_ascent;
       dc.font.descent = reply->font_descent;
@@ -1060,10 +1060,10 @@ isprotodel(const Client *c) {
   int ret = false;
 
   xcb_get_property_cookie_t cookie;
-  cookie = xcb_get_wm_protocols_unchecked(xcb_dpy, c->win, wmatom[WMProtocols]);
+  cookie = xcb_get_wm_protocols_unchecked(dpy, c->win, wmatom[WMProtocols]);
 
   xcb_get_wm_protocols_reply_t protocols;
-  if(xcb_get_wm_protocols_reply(xcb_dpy, cookie, &protocols, NULL)) {
+  if(xcb_get_wm_protocols_reply(dpy, cookie, &protocols, NULL)) {
     for(i = 0; !ret && i < protocols.atoms_len; i++)
       if(protocols.atoms[i] == wmatom[WMDelete])
 	ret = true;
@@ -1113,21 +1113,21 @@ killclient(const Arg *arg) {
     ev.window = selmon->sel->win;
     ev.data.data32[0] = wmatom[WMDelete];
     ev.data.data32[1] = XCB_CURRENT_TIME;
-    xcb_send_event(xcb_dpy, false, selmon->sel->win,
+    xcb_send_event(dpy, false, selmon->sel->win,
 		   XCB_EVENT_MASK_NO_EVENT, (const char *)&ev);
   }
   else {
     int i;
-    xcb_grab_server(xcb_dpy);
+    xcb_grab_server(dpy);
     for (i = 0; i < 256; ++i)
       xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerrordummy, NULL);
-    xcb_set_close_down_mode(xcb_dpy, XCB_CLOSE_DOWN_DESTROY_ALL);
-    xcb_kill_client(xcb_dpy, selmon->sel->win);
+    xcb_set_close_down_mode(dpy, XCB_CLOSE_DOWN_DESTROY_ALL);
+    xcb_kill_client(dpy, selmon->sel->win);
     for (i = 0; i < 256; ++i)
       xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerror, NULL);
-    xcb_ungrab_server(xcb_dpy);
+    xcb_ungrab_server(dpy);
   }
-  xcb_flush(xcb_dpy);
+  xcb_flush(dpy);
 }
 
 void
@@ -1146,8 +1146,8 @@ manage(xcb_window_t w,
 
   /* transience */
   xcb_get_property_cookie_t cookie =
-    xcb_get_wm_transient_for(xcb_dpy, w);
-  xcb_get_wm_transient_for_reply(xcb_dpy, cookie, &trans, &xerr);
+    xcb_get_wm_transient_for(dpy, w);
+  xcb_get_wm_transient_for_reply(dpy, cookie, &trans, &xerr);
   if (xerr) xcb_error_print();
   else t = wintoclient(trans);
   if(t) {
@@ -1161,7 +1161,7 @@ manage(xcb_window_t w,
 
   /* geometry */
   xcb_get_geometry_reply_t *geo = NULL;
-  geo = xcb_get_geometry_reply(xcb_dpy, cookie_g, NULL);
+  geo = xcb_get_geometry_reply(dpy, cookie_g, NULL);
   if (!geo) return;
 
   c->x = geo->x + c->mon->wx;
@@ -1188,26 +1188,26 @@ manage(xcb_window_t w,
     c->bw = borderpx;
   }
   uint32_t bw = c->bw;
-  xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH, &bw);
+  xcb_configure_window(dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH, &bw);
   uint32_t border_color[] = { dc.norm[ColBorder] };
-  xcb_change_window_attributes(xcb_dpy, w, XCB_CW_BORDER_PIXEL, border_color);
+  xcb_change_window_attributes(dpy, w, XCB_CW_BORDER_PIXEL, border_color);
   configure(c); /* propagates border_width, if size doesn't change */
   updatesizehints(c);
   uint32_t ev_mask = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE |
     XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_STRUCTURE_NOTIFY;
-  xcb_change_window_attributes(xcb_dpy, w, XCB_CW_EVENT_MASK, &ev_mask);
+  xcb_change_window_attributes(dpy, w, XCB_CW_EVENT_MASK, &ev_mask);
   grabbuttons(c, false);
   if(!c->isfloating)
     c->isfloating = (trans != XCB_WINDOW_NONE) || c->isfixed;
   if(c->isfloating)
-    xcb_raise_window(xcb_dpy, c->win);
+    xcb_raise_window(dpy, c->win);
   attach(c);
   attachstack(c);
 
   uint32_t geom[] = {c->x + 2*sw, /* some windows require this */
 		     c->y, c->w, c->h };
-  xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
-  xcb_map_window(xcb_dpy, c->win);
+  xcb_configure_window(dpy, c->win, XCB_CONFIG_MOVERESIZE, geom);
+  xcb_map_window(dpy, c->win);
   setclientstate(c, XCB_WM_STATE_NORMAL);
   arrange(c->mon);
 }
@@ -1225,12 +1225,12 @@ maprequest(void *dummy, xcb_connection_t *dpy, xcb_map_request_event_t *ev) {
   static xcb_get_window_attributes_reply_t *wa = NULL;
 
   xcb_get_window_attributes_cookie_t cookie;
-  cookie = xcb_get_window_attributes_unchecked(xcb_dpy, ev->window);
+  cookie = xcb_get_window_attributes_unchecked(dpy, ev->window);
   xcb_get_geometry_cookie_t cookie_g;
   xcb_drawable_t d = { ev->window };
-  cookie_g = xcb_get_geometry_unchecked(xcb_dpy, d);
+  cookie_g = xcb_get_geometry_unchecked(dpy, d);
 
-  if(!(wa = xcb_get_window_attributes_reply(xcb_dpy, cookie, NULL)))
+  if(!(wa = xcb_get_window_attributes_reply(dpy, cookie, NULL)))
     return 0;
   if(wa->override_redirect)
     return 1;
@@ -1255,11 +1255,11 @@ movemouse(const Arg *arg) {
   ocy = c->y;
   // Grab pointer
   xcb_grab_pointer_cookie_t cookie;
-  cookie = xcb_grab_pointer(xcb_dpy, false, root, MOUSEMASK,
+  cookie = xcb_grab_pointer(dpy, false, root, MOUSEMASK,
 			    XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
 			    XCB_WINDOW_NONE, cursor[CurMove], XCB_CURRENT_TIME);
   xcb_grab_pointer_reply_t *reply;
-  reply = xcb_grab_pointer_reply(xcb_dpy, cookie, &xerr);
+  reply = xcb_grab_pointer_reply(dpy, cookie, &xerr);
   if (xerr) xcb_error_print();
   assert(reply);
   if(reply->status != XCB_GRAB_STATUS_SUCCESS) {
@@ -1273,7 +1273,7 @@ movemouse(const Arg *arg) {
   do {
     // XCB does not provide an alternative to XMaskEvent
     if (ev) free(ev);
-    ev = xcb_wait_for_event(xcb_dpy);
+    ev = xcb_wait_for_event(dpy);
     if (!ev) continue;
     switch (ev->response_type) {
     case XCB_CONFIGURE_REQUEST:
@@ -1301,8 +1301,8 @@ movemouse(const Arg *arg) {
     }
   } while(ev->response_type != XCB_BUTTON_RELEASE);
   if (ev) free(ev);
-  xcb_ungrab_pointer(xcb_dpy, XCB_CURRENT_TIME);
-  xcb_flush(xcb_dpy);
+  xcb_ungrab_pointer(dpy, XCB_CURRENT_TIME);
+  xcb_flush(dpy);
   if((m = ptrtomon(c->x + c->w / 2, c->y + c->h / 2)) != selmon) {
     sendmon(c, m);
     selmon = m;
@@ -1334,8 +1334,8 @@ propertynotify(void *dummy, xcb_connection_t *Xdpy, xcb_property_notify_event_t 
     switch (ev->atom) {
     default: break;
     case XCB_ATOM_WM_TRANSIENT_FOR:
-      cookie = xcb_get_wm_transient_for_unchecked(xcb_dpy, c->win);
-      xcb_get_wm_transient_for_reply(xcb_dpy, cookie, &trans, NULL);
+      cookie = xcb_get_wm_transient_for_unchecked(dpy, c->win);
+      xcb_get_wm_transient_for_reply(dpy, cookie, &trans, NULL);
       if(!c->isfloating && (c->isfloating = (wintoclient(trans) != NULL)))
 	arrange(c->mon);
       break;
@@ -1367,10 +1367,10 @@ resize(Client *c, int16_t x, int16_t y, uint16_t w, uint16_t h, const int intera
   if(applysizehints(c, &x, &y, &w, &h, interact)) {
     c->x = x; c->y = y; c->w = w; c->h = h;
     uint32_t geom[] = {x, y, w, h, c->bw};
-    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_MOVERESIZE |
+    xcb_configure_window(dpy, c->win, XCB_CONFIG_MOVERESIZE |
 			 XCB_CONFIG_WINDOW_BORDER_WIDTH, geom);
     configure(c);
-    xcb_flush(xcb_dpy);
+    xcb_flush(dpy);
   }
 }
 
@@ -1391,11 +1391,11 @@ resizemouse(const Arg *arg) {
   nw = c->w; nh = c->h;
   // Grab pointer
   xcb_grab_pointer_cookie_t cookie;
-  cookie = xcb_grab_pointer(xcb_dpy, false, root, MOUSEMASK,
+  cookie = xcb_grab_pointer(dpy, false, root, MOUSEMASK,
 			    XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
 			    XCB_WINDOW_NONE, cursor[CurResize], XCB_CURRENT_TIME);
   xcb_grab_pointer_reply_t *reply;
-  reply = xcb_grab_pointer_reply(xcb_dpy, cookie, &xerr);
+  reply = xcb_grab_pointer_reply(dpy, cookie, &xerr);
   if (xerr) xcb_error_print();
   assert(reply);
   if(reply->status != XCB_GRAB_STATUS_SUCCESS) {
@@ -1404,12 +1404,12 @@ resizemouse(const Arg *arg) {
   }
   free(reply);
 
-  xcb_warp_pointer(xcb_dpy, XCB_NONE, c->win, 0, 0, 0, 0,
+  xcb_warp_pointer(dpy, XCB_NONE, c->win, 0, 0, 0, 0,
 		   c->w + c->bw - 1, c->h + c->bw - 1);
   do {
     // XCB does not provide an equivalent for XMaskEvent
     if (ev) free(ev);
-    ev = xcb_wait_for_event(xcb_dpy);
+    ev = xcb_wait_for_event(dpy);
     switch(ev->response_type) {
     case XCB_CONFIGURE_REQUEST:
     case XCB_EXPOSE:
@@ -1425,9 +1425,9 @@ resizemouse(const Arg *arg) {
   } while(ev->response_type != XCB_BUTTON_RELEASE);
     resize(c, c->x, c->y, nw, nh, true);
   if(ev) free(ev);
-  xcb_warp_pointer(xcb_dpy, XCB_NONE, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
-  xcb_ungrab_pointer(xcb_dpy, XCB_CURRENT_TIME);
-  xcb_flush(xcb_dpy);
+  xcb_warp_pointer(dpy, XCB_NONE, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
+  xcb_ungrab_pointer(dpy, XCB_CURRENT_TIME);
+  xcb_flush(dpy);
   // while(XCheckMaskEvent(dpy, EnterWindowMask, &xev));
   if((m = ptrtomon(c->x + c->w / 2, c->y + c->h / 2)) != selmon) {
     sendmon(c, m);
@@ -1441,8 +1441,8 @@ restack(Monitor *m) {
   drawbar(m);
   if(!m->sel)
     return;
-  xcb_raise_window(xcb_dpy, m->sel->win);  
-  xcb_flush(xcb_dpy);
+  xcb_raise_window(dpy, m->sel->win);  
+  xcb_flush(dpy);
 
   // while(XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
@@ -1452,8 +1452,8 @@ run(void) {
   xcb_generic_event_t *ev;
 
   /* main event loop */
-  xcb_flush(xcb_dpy);
-  while(running && (ev = xcb_wait_for_event(xcb_dpy)))
+  xcb_flush(dpy);
+  while(running && (ev = xcb_wait_for_event(dpy)))
     {
     xcb_event_handle(&evenths, ev); /* call handler */
     free(ev);
@@ -1465,9 +1465,9 @@ scan(void) {
   unsigned int i, num;
   xcb_window_t *wins = NULL;
 
-  xcb_query_tree_cookie_t cookie = xcb_query_tree(xcb_dpy, root);
+  xcb_query_tree_cookie_t cookie = xcb_query_tree(dpy, root);
   xcb_query_tree_reply_t *qtree = NULL;
-  qtree = xcb_query_tree_reply(xcb_dpy, cookie, &xerr);
+  qtree = xcb_query_tree_reply(dpy, cookie, &xerr);
   if (xerr) xcb_error_print();
   assert(qtree);
   num = qtree->children_len;
@@ -1486,25 +1486,25 @@ scan(void) {
   xcb_get_window_attributes_reply_t **wa =
     calloc(num, sizeof(xcb_get_window_attributes_reply_t*));
   for(i=0; i<num; i++) {
-    cookie_wa[i] = xcb_get_window_attributes_unchecked(xcb_dpy, wins[i]);
-    cookie_tr[i] = xcb_get_wm_transient_for_unchecked(xcb_dpy, wins[i]);
-    cookie_h[i] = xcb_get_wm_hints_unchecked(xcb_dpy, wins[i]);
+    cookie_wa[i] = xcb_get_window_attributes_unchecked(dpy, wins[i]);
+    cookie_tr[i] = xcb_get_wm_transient_for_unchecked(dpy, wins[i]);
+    cookie_h[i] = xcb_get_wm_hints_unchecked(dpy, wins[i]);
     xcb_drawable_t d = { wins[i] };
-    cookie_g[i] = xcb_get_geometry_unchecked(xcb_dpy, d);
+    cookie_g[i] = xcb_get_geometry_unchecked(dpy, d);
   }
 
   // Go through children
   xcb_wm_hints_t hints;
   for(i=0; i<num; i++) {
     // Get attributes
-    wa[i] = xcb_get_window_attributes_reply(xcb_dpy, cookie_wa[i], NULL);
+    wa[i] = xcb_get_window_attributes_reply(dpy, cookie_wa[i], NULL);
     if (!wa[i]) continue;
     // Check for transience
     xcb_window_t transient_for;
-    if(xcb_get_wm_transient_for_reply(xcb_dpy, cookie_tr[i], &transient_for, NULL))
+    if(xcb_get_wm_transient_for_reply(dpy, cookie_tr[i], &transient_for, NULL))
       is_transient[i] = 1;
     // Manage window
-    xcb_get_wm_hints_reply(xcb_dpy, cookie_h[i], &hints, NULL);
+    xcb_get_wm_hints_reply(dpy, cookie_h[i], &hints, NULL);
     if (wa[i]->map_state == XCB_MAP_STATE_VIEWABLE || (hints.initial_state == XCB_WM_STATE_ICONIC))
       {
 	if (is_transient[i]) continue; // wa[i] is not freed now
@@ -1550,7 +1550,7 @@ void
 setclientstate(Client *c, xcb_wm_state_t state) {
   long data[] = { state, XCB_NONE };
 
-  xcb_change_property(xcb_dpy, XCB_PROP_MODE_REPLACE, c->win,
+  xcb_change_property(dpy, XCB_PROP_MODE_REPLACE, c->win,
 		      wmatom[WMState], wmatom[WMState], 32,
 		      2, data);
 }
@@ -1561,7 +1561,7 @@ setup(void) {
   sigchld(0);
 
   /* init screen */
-  screen = xcb_setup_roots_iterator(xcb_get_setup(xcb_dpy)).data;
+  screen = xcb_setup_roots_iterator(xcb_get_setup(dpy)).data;
   root = screen->root;
   /* check for other WM */
   checkotherwm();
@@ -1570,9 +1570,9 @@ setup(void) {
   bh = dc.h = dc.font.height + 2;
   updategeom();
   /* get keysyms */
-  keysyms = xcb_key_symbols_alloc(xcb_dpy);
+  keysyms = xcb_key_symbols_alloc(dpy);
   /* init handlers */
-  xcb_event_handlers_init(xcb_dpy, &evenths);
+  xcb_event_handlers_init(dpy, &evenths);
   xcb_event_set_button_press_handler(&evenths, buttonpress, NULL);
   xcb_event_set_configure_request_handler(&evenths, configurerequest, NULL);
   xcb_event_set_configure_notify_handler(&evenths, configurenotify, NULL);
@@ -1591,42 +1591,42 @@ setup(void) {
     xcb_event_set_error_handler(&evenths, i, (xcb_generic_error_handler_t)xerror, NULL);
   /* init atoms */
   xcb_intern_atom_cookie_t atom_c[5];
-  atom_c[0] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
-  atom_c[1] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
-  atom_c[2] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("WM_STATE"), "WM_STATE");
-  atom_c[3] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("_NET_SUPPORTED"), "_NET_SUPPORTED");
-  atom_c[4] = xcb_intern_atom_unchecked(xcb_dpy, 0, strlen("_NET_WM_NAME"), "_NET_WM_NAME");
+  atom_c[0] = xcb_intern_atom_unchecked(dpy, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
+  atom_c[1] = xcb_intern_atom_unchecked(dpy, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
+  atom_c[2] = xcb_intern_atom_unchecked(dpy, 0, strlen("WM_STATE"), "WM_STATE");
+  atom_c[3] = xcb_intern_atom_unchecked(dpy, 0, strlen("_NET_SUPPORTED"), "_NET_SUPPORTED");
+  atom_c[4] = xcb_intern_atom_unchecked(dpy, 0, strlen("_NET_WM_NAME"), "_NET_WM_NAME");
 
   xcb_intern_atom_reply_t *atom_reply;
-  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[0], NULL);
+  atom_reply = xcb_intern_atom_reply(dpy, atom_c[0], NULL);
   if(atom_reply) { wmatom[WMProtocols] = atom_reply->atom; free(atom_reply); }
-  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[1], NULL);
+  atom_reply = xcb_intern_atom_reply(dpy, atom_c[1], NULL);
   if(atom_reply) { wmatom[WMDelete] = atom_reply->atom; free(atom_reply); }
-  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[2], NULL);
+  atom_reply = xcb_intern_atom_reply(dpy, atom_c[2], NULL);
   if(atom_reply) { wmatom[WMState] = atom_reply->atom; free(atom_reply); }
-  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[3], NULL);
+  atom_reply = xcb_intern_atom_reply(dpy, atom_c[3], NULL);
   if(atom_reply) { netatom[NetSupported] = atom_reply->atom; free(atom_reply); }
-  atom_reply = xcb_intern_atom_reply(xcb_dpy, atom_c[4], NULL);
+  atom_reply = xcb_intern_atom_reply(dpy, atom_c[4], NULL);
   if(atom_reply) { netatom[NetWMName] = atom_reply->atom; free(atom_reply); }
   /* init cursors */
-  xcb_font_t font = xcb_generate_id (xcb_dpy);
+  xcb_font_t font = xcb_generate_id (dpy);
   xcb_void_cookie_t cookie_fc =
-    xcb_open_font_checked(xcb_dpy, font, strlen("cursor"), "cursor");
-  xerr = xcb_request_check(xcb_dpy, cookie_fc);
+    xcb_open_font_checked(dpy, font, strlen("cursor"), "cursor");
+  xerr = xcb_request_check(dpy, cookie_fc);
   if(xerr) {
     xcb_error_print();
     die("dwm: error loading cursor font\n");
   }
-  cursor[CurNormal] = xcb_generate_id(xcb_dpy);
-  cursor[CurResize] = xcb_generate_id(xcb_dpy);
-  cursor[CurMove] = xcb_generate_id(xcb_dpy);
-  xcb_create_glyph_cursor(xcb_dpy, cursor[CurNormal], font, font,
+  cursor[CurNormal] = xcb_generate_id(dpy);
+  cursor[CurResize] = xcb_generate_id(dpy);
+  cursor[CurMove] = xcb_generate_id(dpy);
+  xcb_create_glyph_cursor(dpy, cursor[CurNormal], font, font,
 			  XC_left_ptr, XC_left_ptr + 1,
 			  0, 0, 0, 0xffff, 0xffff, 0xffff);
-  xcb_create_glyph_cursor(xcb_dpy, cursor[CurResize], font, font,
+  xcb_create_glyph_cursor(dpy, cursor[CurResize], font, font,
 			  XC_sizing, XC_sizing + 1,
 			  0, 0, 0, 0xffff, 0xffff, 0xffff);
-  xcb_create_glyph_cursor(xcb_dpy, cursor[CurMove], font, font,
+  xcb_create_glyph_cursor(dpy, cursor[CurMove], font, font,
 			  XC_fleur, XC_fleur + 1,
 			  0, 0, 0, 0xffff, 0xffff, 0xffff);
   /* init appearance */
@@ -1636,33 +1636,33 @@ setup(void) {
   dc.sel[ColBorder] = getcolor(selbordercolor);
   dc.sel[ColBG] = getcolor(selbgcolor);
   dc.sel[ColFG] = getcolor(selfgcolor);
-  dc.drawable = xcb_generate_id(xcb_dpy);
-  xcb_create_pixmap(xcb_dpy, screen->root_depth, dc.drawable, root, sw, bh);
-  dc.gc = xcb_generate_id(xcb_dpy);
-  xcb_create_gc(xcb_dpy, dc.gc, root, 0, NULL);
+  dc.drawable = xcb_generate_id(dpy);
+  xcb_create_pixmap(dpy, screen->root_depth, dc.drawable, root, sw, bh);
+  dc.gc = xcb_generate_id(dpy);
+  xcb_create_gc(dpy, dc.gc, root, 0, NULL);
   uint32_t line_attrs[] = { 1, XCB_LINE_STYLE_SOLID, XCB_CAP_STYLE_BUTT,
 			    XCB_JOIN_STYLE_MITER };
-  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_LINE_WIDTH | XCB_GC_LINE_STYLE
+  xcb_change_gc(dpy, dc.gc, XCB_GC_LINE_WIDTH | XCB_GC_LINE_STYLE
 		| XCB_GC_CAP_STYLE | XCB_GC_JOIN_STYLE, line_attrs);
   //  if(!dc.font.set)
-  xcb_change_gc(xcb_dpy, dc.gc, XCB_GC_FONT, &dc.font.xfont);
-  xcb_flush(xcb_dpy);
+  xcb_change_gc(dpy, dc.gc, XCB_GC_FONT, &dc.font.xfont);
+  xcb_flush(dpy);
   /* init bars */
   updatebars();
   updatestatus();
   /* EWMH support per view */
-  xcb_change_property(xcb_dpy, XCB_PROP_MODE_REPLACE, root,
+  xcb_change_property(dpy, XCB_PROP_MODE_REPLACE, root,
 		      netatom[NetSupported], XCB_ATOM_ATOM, 32,
 		      NetLast, netatom);
   /* select for events */
   uint32_t wa = cursor[CurNormal];
-  xcb_change_window_attributes(xcb_dpy, root, XCB_CW_CURSOR, &wa);
+  xcb_change_window_attributes(dpy, root, XCB_CW_CURSOR, &wa);
   wa = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
     XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW |
     XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE;
-  xcb_change_window_attributes(xcb_dpy, root, XCB_CW_EVENT_MASK, &wa);
+  xcb_change_window_attributes(dpy, root, XCB_CW_EVENT_MASK, &wa);
   grabkeys();
-  xcb_flush(xcb_dpy);
+  xcb_flush(dpy);
 }
 
 void
@@ -1672,7 +1672,7 @@ showhide(Client *c) {
   uint32_t geom[2];
   if(ISVISIBLE(c)) { /* show clients top down */
     geom[0] = c->x; geom[1] = c->y;
-    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
+    xcb_configure_window(dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
 
       resize(c, c->x, c->y, c->w, c->h, false);
     showhide(c->snext);
@@ -1680,9 +1680,9 @@ showhide(Client *c) {
   else { /* hide clients bottom up */
     showhide(c->snext);
     geom[0] = c->x + 2 * sw; geom[1] = c->y;
-    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
+    xcb_configure_window(dpy, c->win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, geom);
   }
-  xcb_flush(xcb_dpy);
+  xcb_flush(dpy);
 }
 
 
@@ -1696,8 +1696,8 @@ sigchld(int unused) {
 void
 spawn(const Arg *arg) {
   if(fork() == 0) {
-    if(xcb_dpy)
-      close(xcb_get_file_descriptor(xcb_dpy));
+    if(dpy)
+      close(xcb_get_file_descriptor(dpy));
     setsid();
     execvp(((char **)arg->v)[0], (char **)arg->v);
     fprintf(stderr, "dwm: execvp %s", ((char **)arg->v)[0]);
@@ -1735,8 +1735,8 @@ textnw(const char *text, unsigned int len) {
     { text2[i].byte1 = 0; text2[i].byte2 = text[i]; }
   xcb_query_text_extents_cookie_t cookie;
   xcb_query_text_extents_reply_t *reply;
-  cookie = xcb_query_text_extents(xcb_dpy, dc.font.xfont, len, text2);
-  reply = xcb_query_text_extents_reply(xcb_dpy, cookie, &xerr);
+  cookie = xcb_query_text_extents(dpy, dc.font.xfont, len, text2);
+  reply = xcb_query_text_extents_reply(dpy, cookie, &xerr);
   free(text2);
   if (xerr) xcb_error_print();
   assert(reply);
@@ -1750,7 +1750,7 @@ togglebar(const Arg *arg) {
   selmon->showbar = !selmon->showbar;
   updatebarpos(selmon);
   uint32_t geom[] = {selmon->wx, selmon->by, selmon->ww, bh};
-  xcb_configure_window(xcb_dpy, selmon->barwin, XCB_CONFIG_MOVERESIZE, geom);
+  xcb_configure_window(dpy, selmon->barwin, XCB_CONFIG_MOVERESIZE, geom);
   arrange(selmon);
 }
 
@@ -1783,8 +1783,8 @@ unfocus(Client *c) {
     return;
   grabbuttons(c, false);
   uint32_t border_color[] = { dc.norm[ColBorder] };
-  xcb_change_window_attributes(xcb_dpy, c->win, XCB_CW_BORDER_PIXEL, border_color);
-  xcb_set_input_focus(xcb_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+  xcb_change_window_attributes(dpy, c->win, XCB_CW_BORDER_PIXEL, border_color);
+  xcb_set_input_focus(dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
 		      root, XCB_TIME_CURRENT_TIME);
 }
 
@@ -1796,13 +1796,13 @@ unmanage(Client *c, int destroyed) {
   detach(c);
   detachstack(c);
   if(!destroyed) {
-    xcb_grab_server(xcb_dpy);
-    xcb_configure_window(xcb_dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH,
+    xcb_grab_server(dpy);
+    xcb_configure_window(dpy, c->win, XCB_CONFIG_WINDOW_BORDER_WIDTH,
 			 &(c->oldbw)); /* restore border */
-    xcb_ungrab_button(xcb_dpy, XCB_GRAB_ANY, c->win, XCB_MOD_MASK_ANY);
+    xcb_ungrab_button(dpy, XCB_GRAB_ANY, c->win, XCB_MOD_MASK_ANY);
     setclientstate(c, XCB_WM_STATE_WITHDRAWN);
-    xcb_ungrab_server(xcb_dpy);
-    xcb_flush(xcb_dpy);
+    xcb_ungrab_server(dpy);
+    xcb_flush(dpy);
   }
   free(c);
   focus(NULL);
@@ -1825,19 +1825,19 @@ updatebars(void) {
   wa[0] = XCB_BACK_PIXMAP_PARENT_RELATIVE;
   wa[2] = XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_EXPOSURE;
   for(m = mons; m; m = m->next) {
-    m->barwin = xcb_generate_id(xcb_dpy);
-    xcb_create_window(xcb_dpy, screen->root_depth, m->barwin,
+    m->barwin = xcb_generate_id(dpy);
+    xcb_create_window(dpy, screen->root_depth, m->barwin,
 		      root, m->wx, m->by, m->ww, bh, 0,
 		      XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
 		      XCB_CW_BACK_PIXMAP | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK,
 		      wa);
     xcb_cursor_t value_list[] = { cursor[CurNormal] };
-    xcb_change_window_attributes(xcb_dpy, m->barwin, XCB_CW_CURSOR, (uint32_t*)value_list);
-    xcb_map_window(xcb_dpy, m->barwin);
-    xcb_raise_window(xcb_dpy, m->barwin);
+    xcb_change_window_attributes(dpy, m->barwin, XCB_CW_CURSOR, (uint32_t*)value_list);
+    xcb_map_window(dpy, m->barwin);
+    xcb_raise_window(dpy, m->barwin);
   }
 
-  xcb_flush(xcb_dpy);
+  xcb_flush(dpy);
 }
 
 void
@@ -1859,9 +1859,9 @@ updategeom(void) {
 
 #ifdef XINERAMA
   xcb_xinerama_is_active_cookie_t cookie;
-  cookie = xcb_xinerama_is_active_unchecked(xcb_dpy);
+  cookie = xcb_xinerama_is_active_unchecked(dpy);
   xcb_xinerama_is_active_reply_t *xinerama_r;
-  xinerama_r = xcb_xinerama_is_active_reply(xcb_dpy, cookie, NULL);
+  xinerama_r = xcb_xinerama_is_active_reply(dpy, cookie, NULL);
   if(xinerama_r && xinerama_r->state) {
     free(xinerama_r);
 
@@ -1875,8 +1875,8 @@ updategeom(void) {
 
     size_t sinfo_s = sizeof(xcb_xinerama_screen_info_t);
 
-    cookie = xcb_xinerama_query_screens_unchecked(xcb_dpy);
-    reply_qs = xcb_xinerama_query_screens_reply(xcb_dpy, cookie, NULL);
+    cookie = xcb_xinerama_query_screens_unchecked(dpy);
+    reply_qs = xcb_xinerama_query_screens_reply(dpy, cookie, NULL);
     info = xcb_xinerama_query_screens_screen_info(reply_qs);
     nn = xcb_xinerama_query_screens_screen_info_length(reply_qs);
 
@@ -1958,8 +1958,8 @@ updatenumlockmask(void) {
   xcb_get_modifier_mapping_reply_t *reply;
 
   numlockmask = 0;
-  cookie = xcb_get_modifier_mapping(xcb_dpy);
-  reply = xcb_get_modifier_mapping_reply(xcb_dpy, cookie, &xerr);
+  cookie = xcb_get_modifier_mapping(dpy);
+  reply = xcb_get_modifier_mapping_reply(dpy, cookie, &xerr);
   if (xerr) xcb_error_print();
   assert(reply);
   xcb_keycode_t *modmap = xcb_get_modifier_mapping_keycodes(reply);
@@ -1977,9 +1977,9 @@ void
 updatesizehints(Client *c) {
   xcb_get_property_cookie_t cookie;
   xcb_size_hints_t size;
-  cookie = xcb_get_wm_normal_hints_unchecked(xcb_dpy, c->win);
+  cookie = xcb_get_wm_normal_hints_unchecked(dpy, c->win);
 
-  if(!xcb_get_wm_normal_hints_reply(xcb_dpy, cookie, &size, NULL))
+  if(!xcb_get_wm_normal_hints_reply(dpy, cookie, &size, NULL))
     /* size is uninitialized, ensure that size.flags aren't used */
     size.flags = XCB_SIZE_HINT_P_SIZE;
   if(size.flags & XCB_SIZE_HINT_BASE_SIZE) {
@@ -2044,14 +2044,14 @@ updatewmhints(Client *c) {
   xcb_get_property_cookie_t cookie;
   xcb_wm_hints_t hints;
 
-  cookie = xcb_get_wm_hints(xcb_dpy, c->win);
-  xcb_get_wm_hints_reply(xcb_dpy, cookie, &hints, &xerr);
+  cookie = xcb_get_wm_hints(dpy, c->win);
+  xcb_get_wm_hints_reply(dpy, cookie, &hints, &xerr);
   if (xerr) {
     xcb_error_print(); return; }
   else {
     if(c == selmon->sel && hints.flags & XCB_WM_HINT_X_URGENCY) {
       hints.flags &= ~XCB_WM_HINT_X_URGENCY;
-      xcb_set_wm_hints(xcb_dpy, c->win, &hints);
+      xcb_set_wm_hints(dpy, c->win, &hints);
     }
     else
       c->isurgent = (hints.flags & XCB_WM_HINT_X_URGENCY) ? true : false;
@@ -2161,16 +2161,13 @@ main(int argc, char *argv[]) {
     die("usage: dwm [-v]\n");
   if(!setlocale(LC_CTYPE, "")) // || !XSupportsLocale())
     fputs("warning: no locale support\n", stderr);
-  // if(!(dpy = XOpenDisplay(NULL)))
-  //   die("dwm: cannot open display\n");
-  xcb_dpy = xcb_connect(NULL,0);
-  if(xcb_connection_has_error(xcb_dpy))
+  dpy = xcb_connect(NULL,0);
+  if(xcb_connection_has_error(dpy))
     die("dwm: cannot open XCB connection to display\n");
   setup();
   scan();
   run();
   cleanup();
-  // XCloseDisplay(dpy);
-  xcb_disconnect(xcb_dpy);
+  xcb_disconnect(dpy);
   return 0;
 }
